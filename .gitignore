@@ -1,6 +1,9 @@
 # out directory
 out/
 
+# json files
+*.json
+
 # Gradle files
 .gradle/
 build/
