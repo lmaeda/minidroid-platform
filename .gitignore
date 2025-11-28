@@ -1,3 +1,6 @@
+# out directory
+out/
+
 # Gradle files
 .gradle/
 build/

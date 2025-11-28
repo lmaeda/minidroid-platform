@@ -1,3 +1,111 @@
+# MiniDroid プラットフォーム - セキュリティスキャンデモウォークスルー
+
+このプロジェクトは、**Snyk**、**Syft**、**OSV-Scanner** のようなセキュリティスキャンツールをテストするために、簡略化された Android/組み込みビルド構造を模倣しています。
+
+## ディレクトリ構造
+- `system/core`: ネイティブ C++ サービス。
+- `packages/apps`: Java/Kotlin アプリケーション。
+- `vendor/components`: Go/Rust マイクロサービス。
+- `system/tools`: Python システムユーティリティ。
+- `out/`: シミュレートされた「ビルド成果物」（Syft/OSV のターゲット）。
+
+## 前提条件
+
+以下のツールがインストールされていることを確認してください：
+
+1.  **Snyk CLI**: `npm install -g snyk`（そして `snyk auth` を実行）
+2.  **Syft**: `curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin`
+3.  **OSV-Scanner**: `go install github.com/google/osv-scanner/cmd/osv-scanner@latest`（またはバイナリダウンロード経由）
+
+---
+
+## フェーズ1：ビルドシミュレーション
+
+実際の Android 環境では、`source build/envsetup.sh` と `make` がシステムイメージを作成します。ここでは、その簡略版を模倣します。このリポジトリには、Linux/macOS用の `build_system.sh` と Windows用の `build_system.ps1` の2つのビルドスクリプトが含まれています。これらのスクリリプトは、Java、C/C++、Python、Go、およびRustで書かれたさまざまなコンポーネントをコンパイルし、ビルド成果物を `out/` ディレクトリに配置します。
+
+お使いのオペレーティングシステムに適したビルドスクリプトを実行して、`out/` にファイルシステム成果物を生成します。
+
+**Linux/macOS (Bash):**
+```bash
+./build_system.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+./build_system.ps1
+```
+*出力:* C++、Java、Go、Rustのコンパイル、および `out/target/product/generic` への成果物のインストールを示すログが表示されるはずです。これは、実際のビルド出力ディレクトリをシミュレートしています。
+
+## フェーズ2：静的アプリケーションセキュリティテスト（SAST）
+
+コンパイルされた OS を見る前に、ソースコードに悪いコーディングプラクティス（バッファオーバーフローなど）がないかスキャンしましょう。
+
+Snyk Code を実行して、ソースの脆弱性をスキャンし、Snyk に結果を報告します：
+```bash
+snyk code test --report --project-name=minidroid --target-name=minidroid-platform --target-reference="$(git branch --show-current)" --remote-repo-url=https://github.com/lmaeda/minidroid-platform --org=${SNYK_ORG_ID}
+```
+**期待されること:**
+*   Snyk は `system/core/native_service.c` の脆弱性をフラグ付けするはずです。
+*   `strcpy` の使用に関する **"Unchecked Input for Loop Condition"** や **"Buffer Overflow"** のような警告を探してください。
+*   このコマンドは、結果を Snyk プラットフォームに報告し、指定されたプロジェクト名、ターゲット名、ブランチ参照、リモートリポジトリ URL、および組織 ID で関連付けます。
+
+## フェーズ3：SBOM（ソフトウェア部品表）の生成
+
+次に、`out/` ディレクトリを検査します。これは、デバイスにフラッシュされる最終的なファイルシステムを表します。SBOM を生成して、その中のすべてのソフトウェアコンポーネントをカタログ化する必要があります。
+
+Syft を使用して SBOM を生成します：
+```bash
+# 「ビルドされた」イメージ（out ディレクトリ）をスキャンして、最終的な OS に何が含まれているかを確認します。
+syft dir:./out/target/product/generic/system -o cyclonedx-json --file minidroid.sbom.json
+```
+**何が起こったか？**
+*   Syft はシミュレートされたシステムディレクトリをクロールしました。
+*   ビルド中にそこにコピーされた `pom.xml`（名前変更済み）、`requirements.txt`、`go.mod` ファイルを見つけました。
+*   これらすべてのコンポーネントをリストした CycloneDX JSON ファイルを作成しました。
+
+## フェーズ4：SBOMの脆弱性スキャン
+
+これで、ソフトウェアの「成分」リストを既知の脆弱性データベースと照合できます。
+
+### オプションA：Google OSV-Scanner を使用する
+
+Google の OSV データベースは、オープンソースの脆弱性に対して優れています。
+
+```bash
+osv-scanner --sbom minidroid.sbom.json
+```
+**期待されること:**
+*   `log4j-core`（バージョン 2.14.1）をフラグ付けするはずです。
+*   `requests`（バージョン 2.19.0）をフラグ付けするはずです。
+*   これらのコンポーネントを OSV データベースと照合し、関連する脆弱性を見つけます。
+
+### オプションB：Snyk Open Source を使用する
+
+SBOM を Snyk にインポートすると、オープンソースの脆弱性を分析し、経時的に追跡できます。
+
+```bash
+snyk sbom test --experimental --file=minidroid.sbom.json
+```
+**期待されること:**
+*   Snyk は SBOM にリストされているパッケージを特定します。
+*   `log4j` の重大な **Log4Shell** 脆弱性を表示します。
+*   詳細情報と修正アドバイスについては、Snyk 脆弱性データベースへのリンクを提供します。
+
+### オプションC：Snyk Open Source を使用して SBOM を監視する
+
+Snyk に SBOM を監視させると、長期的に依存関係の脆弱性を追跡し、新しい脆弱性が発見されたときにアラートを受け取ることができます。
+
+```bash
+snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
+```
+**期待されること:**
+*   このコマンドは、`minidroid.sbom.json` ファイルによって定義されたプロジェクトを Snyk プラットフォームで監視するように設定します。
+*   Snyk が新しい脆弱性を発見すると、関連するプロジェクトに対してアラートが送信されます。
+
+
+---
+<br>
+
 # MiniDroid Platform - Security Scan Demo Walkthrough
 
 This project mimics a simplified Android/Embedded build structure to test security scanning tools like **Snyk**, **Syft**, and **OSV-Scanner**.
@@ -21,25 +129,33 @@ Ensure you have the following tools installed:
 
 ## Phase 1: The Build Simulation
 
-In a real Android environment, `source build/envsetup.sh` and `make` create the system image. We will mimic a simplified version of this process.
+In a real Android environment, `source build/envsetup.sh` and `make` create the system image. We will mimic a simplified version of this process. This repository includes two build scripts: `build_system.sh` for Linux/macOS and `build_system.ps1` for Windows. These scripts compile the various components written in Java, C/C++, Python, Go, and Rust, and place the build artifacts into the `out/` directory.
 
-Run the build script to generate the filesystem artifacts in `out/`:
+Run the build script appropriate for your operating system to generate the filesystem artifacts in `out/`:
+
+**For Linux/macOS (Bash):**
 ```bash
 ./build_system.sh
 ```
-*Output:* You should see logs indicating it is "Compiling" C++ and "Installing" JAR/Python artifacts into `out/target/product/generic/system`. This simulates a real build output directory.
+
+**For Windows (PowerShell):**
+```powershell
+./build_system.ps1
+```
+*Output:* You should see logs indicating it is compiling C++, Java, Go, and Rust, and installing the artifacts into `out/target/product/generic`. This simulates a real build output directory.
 
 ## Phase 2: Static Application Security Testing (SAST)
 
 Before we look at the compiled OS, let's scan the source code for bad coding practices (like Buffer Overflows).
 
-Run Snyk Code to scan the source for vulnerabilities:
+Run Snyk Code to scan the source for vulnerabilities and report the results to Snyk:
 ```bash
-snyk code test
+snyk code test --report --project-name=minidroid --target-name=minidroid-platform --target-reference="$(git branch --show-current)" --remote-repo-url=https://github.com/lmaeda/minidroid-platform --org=${SNYK_ORG_ID}
 ```
 **What to expect:**
 *   Snyk should flag a vulnerability in `system/core/native_service.c`.
 *   Look for warnings like **"Unchecked Input for Loop Condition"** or **"Buffer Overflow"** regarding the use of `strcpy`.
+*   This command will report the results to the Snyk platform, associating them with the specified project name, target name, branch reference, remote repository URL, and organization ID.
 
 ## Phase 3: Generating the SBOM (Software Bill of Materials)
 
@@ -76,9 +192,20 @@ osv-scanner --sbom minidroid.sbom.json
 Importing the SBOM into Snyk allows you to analyze open-source vulnerabilities and track them over time.
 
 ```bash
-snyk sbom test --file=minidroid.sbom.json
+snyk sbom test --experimental --file=minidroid.sbom.json
 ```
 **What to expect:**
 *   Snyk will identify the packages listed in the SBOM.
 *   It will show the critical **Log4Shell** vulnerability in `log4j`.
 *   It provides a link to the Snyk Vulnerability Database for detailed information and remediation advice.
+
+### Option C: Using Snyk Open Source to Monitor SBOM
+
+Allow Snyk to monitor your SBOM for long-term dependency vulnerability tracking and receive alerts when new vulnerabilities are disclosed.
+
+```bash
+snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
+```
+**What to expect:**
+*   This command will set up monitoring for the project defined by the `minidroid.sbom.json` file on the Snyk platform.
+*   Snyk will send alerts for the associated project when new vulnerabilities are found.

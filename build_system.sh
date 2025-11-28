@@ -36,23 +36,48 @@ fi
 
 # Build the Java frameworks.
 echo "[*] Building Java Frameworks..."
-# In a real build, this would involve running 'mvn package'.
-# Here, we just copy the pom.xml to the output directory.
-cp packages/apps/Launcher/pom.xml $SYSTEM_DIR/framework/launcher-meta.xml
-echo "    - Installed launcher artifacts to system/framework"
+if command -v mvn &> /dev/null; then
+    (cd packages/apps/Launcher && mvn package)
+    cp packages/apps/Launcher/target/*.jar $SYSTEM_DIR/app/Launcher.jar
+    echo "    - Built and installed Launcher.jar to system/app"
+else
+    echo "    - Maven not found. Skipping Java build."
+    touch $SYSTEM_DIR/app/Launcher.jar
+fi
 
 # Install the Python tools.
 echo "[*] Installing Python Tools..."
-# Copy the requirements.txt and Python script to the output directory.
-cp system/tools/requirements.txt $SYSTEM_DIR/etc/sys_tool_requirements.txt
-cp system/tools/sys_tool.py $SYSTEM_DIR/bin/sys_tool.py
-echo "    - Installed system tools"
+if [ -f "$HOME/workspace/venvs/pyenv3.13_minidroid/bin/activate" ]; then
+    # Activate the virtual environment.
+    source "$HOME/workspace/venvs/pyenv3.13_minidroid/bin/activate"
+    pip install -r system/tools/requirements.txt
+    cp system/tools/sys_tool.py $SYSTEM_DIR/bin/sys_tool.py
+    echo "    - Installed system tools"
+else
+    echo "    - Python virtual environment not found. Skipping Python tools installation."
+fi
+
 
 # Build the Go microservices.
 echo "[*] Building Go Microservices..."
-# Copy the go.mod file to the output directory.
-cp vendor/components/netdaemon/go.mod $SYSTEM_DIR/bin/netdaemon.go.mod
-echo "    - Installed Go daemon metadata"
+if command -v go &> /dev/null; then
+    go build -o $SYSTEM_DIR/bin/netdaemon vendor/components/netdaemon/main.go
+    echo "    - Built and installed netdaemon to system/bin"
+else
+    echo "    - Go not found. Skipping Go microservice build."
+    touch $SYSTEM_DIR/bin/netdaemon
+fi
+
+# Build the Rust components.
+echo "[*] Building Rust Components..."
+if command -v cargo &> /dev/null; then
+    (cd vendor/components/secure_enclave && cargo build --release)
+    cp vendor/components/secure_enclave/target/release/secure_enclave $VENDOR_DIR/lib64/secure_enclave
+    echo "    - Built and installed secure_enclave to vendor/lib64"
+else
+    echo "    - Cargo not found. Skipping Rust component build."
+    touch $VENDOR_DIR/lib64/secure_enclave
+fi
 
 # --- Build Completion ---
 
