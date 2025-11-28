@@ -34,7 +34,9 @@
 ```powershell
 ./build_system.ps1
 ```
-*出力:* C++、Java、Go、Rustのコンパイル、および `out/target/product/generic` への成果物のインストールを示すログが表示されるはずです。これは、実際のビルド出力ディレクトリをシミュレートしています。
+*出力:* Java、C++、Python、Go、および Rust のコンパイル、および `out/target/product/generic` への成果物のインストールを示す、より詳細なログが表示されるはずです。これは、実際のビルド出力ディレクトリをシミュレートしています。
+
+***重要:*** ビルドスクリプトは、`pom.xml`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを `out/` ディレクトリに意図的にコピーします。これにより、`Syft` のようなSBOMツールが、最終的なビルド成果物に含まれるすべてのソフトウェアコンポーネントを正確に検出できるようになります。
 
 ## フェーズ2：静的アプリケーションセキュリティテスト（SAST）
 
@@ -56,11 +58,11 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
 Syft を使用して SBOM を生成します：
 ```bash
 # 「ビルドされた」イメージ（out ディレクトリ）をスキャンして、最終的な OS に何が含まれているかを確認します。
-syft dir:./out/target/product/generic/system -o cyclonedx-json --file minidroid.sbom.json
+syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
 ```
 **何が起こったか？**
 *   Syft はシミュレートされたシステムディレクトリをクロールしました。
-*   ビルド中にそこにコピーされた `pom.xml`（名前変更済み）、`requirements.txt`、`go.mod` ファイルを見つけました。
+*   ビルド中にそこにコピーされた `pom.xml`、`requirements.txt`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを見つけました。
 *   これらすべてのコンポーネントをリストした CycloneDX JSON ファイルを作成しました。
 
 ## フェーズ4：SBOMの脆弱性スキャン
@@ -144,6 +146,8 @@ Run the build script appropriate for your operating system to generate the files
 ```
 *Output:* You should see logs indicating it is compiling C++, Java, Go, and Rust, and installing the artifacts into `out/target/product/generic`. This simulates a real build output directory.
 
+***Note:*** The build scripts are intentionally configured to copy package manifest files (e.g., `pom.xml`, `go.mod`, `Cargo.toml`, etc.) into the `out/` directory. This is crucial for ensuring that SBOM tools like `Syft` can accurately discover all software components included in the final build artifact.
+
 ## Phase 2: Static Application Security Testing (SAST)
 
 Before we look at the compiled OS, let's scan the source code for bad coding practices (like Buffer Overflows).
@@ -163,12 +167,12 @@ Now we'll inspect the `out/` directory. This represents the final file system th
 
 Generate the SBOM using Syft:
 ```bash
-# Scan the "built" image (the out directory) to see what ended up in the final OS.
-syft dir:./out/target/product/generic/system -o cyclonedx-json --file minidroid.sbom.json
+# Scan the "built" image (the out directory ) to see what ended up in the final OS.
+syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
 ```
 **What just happened?**
 *   Syft crawled the simulated system directory.
-*   It found the `pom.xml` (renamed), `requirements.txt`, and `go.mod` files that were copied there during the build.
+*   It found the package manifests (`pom.xml`, `requirements.txt`, `go.mod`, `Cargo.toml`, etc.) that were copied there during the build.
 *   It created a CycloneDX JSON file listing all these components.
 
 ## Phase 4: Vulnerability Scanning the SBOM
