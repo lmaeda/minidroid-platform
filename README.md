@@ -37,6 +37,9 @@
 *出力:* Java、C++、Python、Go、および Rust のコンパイル、および `out/target/product/generic` への成果物のインストールを示す、より詳細なログが表示されるはずです。これは、実際のビルド出力ディレクトリをシミュレートしています。
 
 ***重要:*** ビルドスクリプトは、`pom.xml`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを `out/` ディレクトリに意図的にコピーします。これにより、`Syft` のようなSBOMツールが、最終的なビルド成果物に含まれるすべてのソフトウェアコンポーネントを正確に検出できるようになります。
+<img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
+<img width="1269" height="712" alt="Screenshot 2025-11-28 at 17 26 48" src="https://github.com/user-attachments/assets/860f4b6c-203f-4485-8ef5-ac28495256e8" />
+
 
 ## フェーズ2：静的アプリケーションセキュリティテスト（SAST）
 
@@ -50,6 +53,8 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
 *   Snyk は `system/core/native_service.c` の脆弱性をフラグ付けするはずです。
 *   `strcpy` の使用に関する **"Unchecked Input for Loop Condition"** や **"Buffer Overflow"** のような警告を探してください。
 *   このコマンドは、結果を Snyk プラットフォームに報告し、指定されたプロジェクト名、ターゲット名、ブランチ参照、リモートリポジトリ URL、および組織 ID で関連付けます。
+<img width="1425" height="580" alt="Screenshot 2025-11-28 at 17 28 30" src="https://github.com/user-attachments/assets/0180a96c-98c9-4553-97f4-4aec610725a3" />
+
 
 ## フェーズ3：SBOM（ソフトウェア部品表）の生成
 
@@ -64,6 +69,7 @@ syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
 *   Syft はシミュレートされたシステムディレクトリをクロールしました。
 *   ビルド中にそこにコピーされた `pom.xml`、`requirements.txt`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを見つけました。
 *   これらすべてのコンポーネントをリストした CycloneDX JSON ファイルを作成しました。
+<img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
 
 ## フェーズ4：SBOMの脆弱性スキャン
 
@@ -80,8 +86,9 @@ osv-scanner --sbom minidroid.sbom.json
 *   `log4j-core`（バージョン 2.14.1）をフラグ付けするはずです。
 *   `requests`（バージョン 2.19.0）をフラグ付けするはずです。
 *   これらのコンポーネントを OSV データベースと照合し、関連する脆弱性を見つけます。
+<img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
 
-### オプションB：Snyk Open Source を使用する
+### オプションB：Snyk sbom を使用する
 
 SBOM を Snyk にインポートすると、オープンソースの脆弱性を分析し、経時的に追跡できます。
 
@@ -92,8 +99,10 @@ snyk sbom test --experimental --file=minidroid.sbom.json
 *   Snyk は SBOM にリストされているパッケージを特定します。
 *   `log4j` の重大な **Log4Shell** 脆弱性を表示します。
 *   詳細情報と修正アドバイスについては、Snyk 脆弱性データベースへのリンクを提供します。
+<img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
 
-### オプションC：Snyk Open Source を使用して SBOM を監視する
+
+### オプションC：Snyk sbom を使用して SBOM を監視する
 
 Snyk に SBOM を監視させると、長期的に依存関係の脆弱性を追跡し、新しい脆弱性が発見されたときにアラートを受け取ることができます。
 
@@ -103,6 +112,9 @@ snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
 **期待されること:**
 *   このコマンドは、`minidroid.sbom.json` ファイルによって定義されたプロジェクトを Snyk プラットフォームで監視するように設定します。
 *   Snyk が新しい脆弱性を発見すると、関連するプロジェクトに対してアラートが送信されます。
+<img width="1105" height="604" alt="Screenshot 2025-11-28 at 17 31 09" src="https://github.com/user-attachments/assets/a27f1998-435b-4951-8ac6-286103faf3bd" />
+
+<img width="1268" height="766" alt="Screenshot 2025-11-28 at 17 20 21" src="https://github.com/user-attachments/assets/80dfdf6a-462e-4a33-933b-7708c4d2d0f3" />
 
 
 ---
@@ -147,6 +159,9 @@ Run the build script appropriate for your operating system to generate the files
 *Output:* You should see logs indicating it is compiling C++, Java, Go, and Rust, and installing the artifacts into `out/target/product/generic`. This simulates a real build output directory.
 
 ***Note:*** The build scripts are intentionally configured to copy package manifest files (e.g., `pom.xml`, `go.mod`, `Cargo.toml`, etc.) into the `out/` directory. This is crucial for ensuring that SBOM tools like `Syft` can accurately discover all software components included in the final build artifact.
+<img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
+<img width="1269" height="712" alt="Screenshot 2025-11-28 at 17 26 48" src="https://github.com/user-attachments/assets/860f4b6c-203f-4485-8ef5-ac28495256e8" />
+
 
 ## Phase 2: Static Application Security Testing (SAST)
 
@@ -160,6 +175,8 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
 *   Snyk should flag a vulnerability in `system/core/native_service.c`.
 *   Look for warnings like **"Unchecked Input for Loop Condition"** or **"Buffer Overflow"** regarding the use of `strcpy`.
 *   This command will report the results to the Snyk platform, associating them with the specified project name, target name, branch reference, remote repository URL, and organization ID.
+<img width="1425" height="580" alt="Screenshot 2025-11-28 at 17 28 30" src="https://github.com/user-attachments/assets/0180a96c-98c9-4553-97f4-4aec610725a3" />
+
 
 ## Phase 3: Generating the SBOM (Software Bill of Materials)
 
@@ -174,6 +191,7 @@ syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
 *   Syft crawled the simulated system directory.
 *   It found the package manifests (`pom.xml`, `requirements.txt`, `go.mod`, `Cargo.toml`, etc.) that were copied there during the build.
 *   It created a CycloneDX JSON file listing all these components.
+<img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
 
 ## Phase 4: Vulnerability Scanning the SBOM
 
@@ -190,6 +208,7 @@ osv-scanner --sbom minidroid.sbom.json
 *   It should flag `log4j-core` (Version 2.14.1).
 *   It should flag `requests` (Version 2.19.0).
 *   It matches these components against the OSV database to find associated vulnerabilities.
+<img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
 
 ### Option B: Using Snyk Open Source
 
@@ -202,8 +221,9 @@ snyk sbom test --experimental --file=minidroid.sbom.json
 *   Snyk will identify the packages listed in the SBOM.
 *   It will show the critical **Log4Shell** vulnerability in `log4j`.
 *   It provides a link to the Snyk Vulnerability Database for detailed information and remediation advice.
+<img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
 
-### Option C: Using Snyk Open Source to Monitor SBOM
+### Option C: Using Snyk sbom to Monitor SBOM
 
 Allow Snyk to monitor your SBOM for long-term dependency vulnerability tracking and receive alerts when new vulnerabilities are disclosed.
 
@@ -213,3 +233,6 @@ snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
 **What to expect:**
 *   This command will set up monitoring for the project defined by the `minidroid.sbom.json` file on the Snyk platform.
 *   Snyk will send alerts for the associated project when new vulnerabilities are found.
+<img width="1105" height="604" alt="Screenshot 2025-11-28 at 17 31 09" src="https://github.com/user-attachments/assets/a27f1998-435b-4951-8ac6-286103faf3bd" />
+
+<img width="1268" height="766" alt="Screenshot 2025-11-28 at 17 20 21" src="https://github.com/user-attachments/assets/80dfdf6a-462e-4a33-933b-7708c4d2d0f3" />
