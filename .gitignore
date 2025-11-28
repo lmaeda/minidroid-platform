@@ -35,3 +35,25 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# --- Additional ignore rules added by Gemini CLI ---
+
+# Python venv
+.venv/
+
+# Java packages (Maven build artifacts)
+target/
+packages/apps/**/target/
+*.jar
+*.class
+
+# Go packages (build artifacts)
+**/pkg/
+**/bin/
+
+# Rust packages (build artifacts)
+**/target/
+
+# C/C++ packages (build artifacts)
+**/bin/
+**/lib/
