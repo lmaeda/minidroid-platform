@@ -1,1 +1,1 @@
-. "/Users/lucsmaeda/workspace/tasks/research/Tasks_AndroidPlatform/minidroid-platformv2/system/core/conanrunenv-release-x86_64.sh"
+. "/Users/lucsmaeda/workspace/tasks/research/Tasks_AndroidPlatform/minidroid-platform/system/core/conanrunenv-release-x86_64.sh"

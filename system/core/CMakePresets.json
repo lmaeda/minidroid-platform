@@ -19,7 +19,7 @@
                 "CMAKE_BUILD_TYPE": "Release"
             },
             "toolchainFile": "conan_toolchain.cmake",
-            "binaryDir": "/Users/lucsmaeda/workspace/tasks/research/Tasks_AndroidPlatform/minidroid-platformv2/system/core"
+            "binaryDir": "/Users/lucsmaeda/workspace/tasks/research/Tasks_AndroidPlatform/minidroid-platform/system/core"
         }
     ],
     "buildPresets": [
