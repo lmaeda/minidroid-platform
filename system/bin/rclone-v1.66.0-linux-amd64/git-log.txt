@@ -1,0 +1,2915 @@
+commit b6013a5e689ff4ff8a869aa262c9d04d454f5a71
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sun Mar 10 11:22:43 2024 +0000
+
+    Version v1.66.0
+
+commit b7422a4fc8b747d18c01834bf5a14f1a92ca596c
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Mar 9 14:13:18 2024 +0000
+
+    docs: update metadata docs with Move and Copy support
+
+commit 9b650d35179b8596f59bef612bfa9915a0f015d5
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Feb 20 18:09:56 2024 -0500
+
+    hasher: look for cached hash if passed hash unexpectedly blank
+    
+    Before this change, Hasher did not check whether a "passed hash" (hashtype
+    natively supported by the wrapped backend) returned from a backend was blank,
+    and would sometimes return a blank hash to the caller even when a non-blank hash
+    was already stored in the db. This caused issues with, for example, Google
+    Drive, which has SHA1 / SHA256 hashes for some files but not others
+    (https://rclone.org/drive/#sha1-or-sha256-hashes-may-be-missing) and sometimes also
+    does not have hashes for very recently modified files.
+    
+    After this change, Hasher will check if the received "passed hash" is
+    unexpectedly blank, and if so, it will continue to try other enabled methods,
+    such as retrieving a value from the database, or possibly regenerating it.
+    
+    https://forum.rclone.org/t/hasher-with-gdrive-backend-does-not-return-sha1-sha256-for-old-files/44680/9?u=nielash
+
+commit ff0acfb568ede3cf4bda9a791bd777398a1bc167
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Feb 22 09:56:02 2024 -0500
+
+    hasher: fix error from trying to stop an already-stopped db
+    
+    Before this change, Hasher would sometimes try to stop a bolt db that was
+    already stopped, resulting in an error. This change fixes the issue by checking
+    first whether the db is already stopped.
+    
+    https://forum.rclone.org/t/hasher-with-gdrive-backend-does-not-return-sha1-sha256-for-old-files/44680/11?u=nielash
+
+commit ac830ddd4220d00f8e41e35e9b22e85a288c0574
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Mar 9 11:28:15 2024 +0000
+
+    sync: don't sync directory modtimes from backends which don't have directories
+    
+    Some backends (like s3, swift, gcs, azureblob) don't have directories
+    (this can be overridden on some using the directory markers feature).
+    
+    It therefore makes no sense to sync directory times from them as they
+    will all be a value made up by rclone (--default-time)
+    
+    We use the feature flag CanHaveEmptyDirectories to mark backends
+    without real directory support and disable the directory modification
+    time syncing on those.
+
+commit f491efc85d0bc6c674520331f315b51f060a6b92
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 8 14:45:48 2024 +0000
+
+    sync: fix integration tests on chunker
+    
+    The tests added in this commit needed a tweak for chunker
+    
+    8c69455c37966e66 sync: don't set dir modtimes if already set
+
+commit fcb182efce71a45ac30ca062abe39d3e5ffd8691
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 8 12:50:00 2024 +0000
+
+    docs: add current sponsor logos in
+
+commit 1473de3f040af01c0d554cc6f6490c826bbbf3fa
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Feb 22 09:17:14 2024 -0500
+
+    onedrive: add metadata support
+    
+    This change adds support for metadata on OneDrive. Metadata (including
+    permissions) is supported for both files and directories.
+    
+    OneDrive supports System Metadata (not User Metadata, as of this writing.) Much
+    of the metadata is read-only, and there are some differences between OneDrive
+    Personal and Business (see table in OneDrive backend docs for details).
+    
+    Permissions are also supported, if --onedrive-metadata-permissions is set. The
+    accepted values for --onedrive-metadata-permissions are read, write, read,write, and
+    off (the default). write supports adding new permissions, updating the "role" of
+    existing permissions, and removing permissions. Updating and removing require
+    the Permission ID to be known, so it is recommended to use read,write instead of
+    write if you wish to update/remove permissions.
+    
+    Permissions are read/written in JSON format using the same schema as the
+    OneDrive API, which differs slightly between OneDrive Personal and Business.
+    (See OneDrive backend docs for examples.)
+    
+    To write permissions, pass in a "permissions" metadata key using this same
+    format. The --metadata-mapper tool can be very helpful for this.
+    
+    When adding permissions, an email address can be provided in the User.ID or
+    DisplayName properties of grantedTo or grantedToIdentities. Alternatively, an
+    ObjectID can be provided in User.ID. At least one valid recipient must be
+    provided in order to add a permission for a user. Creating a Public Link is also
+    supported, if Link.Scope is set to "anonymous".
+    
+    Note that adding a permission can fail if a conflicting permission already
+    exists for the file/folder.
+    
+    To update an existing permission, include both the Permission ID and the new
+    roles to be assigned. roles is the only property that can be changed.
+    
+    To remove permissions, pass in a blob containing only the permissions you wish
+    to keep (which can be empty, to remove all.)
+    
+    Note that both reading and writing permissions requires extra API calls, so if
+    you don't need to read or write permissions it is recommended to omit --onedrive-
+    metadata-permissions.
+    
+    Metadata and permissions are supported for Folders (directories) as well as
+    Files. Note that setting the mtime or btime on a Folder requires one extra API
+    call on OneDrive Business only.
+    
+    OneDrive does not currently support User Metadata. When writing metadata, only
+    writeable system properties will be written -- any read-only or unrecognized keys
+    passed in will be ignored.
+    
+    TIP: to see the metadata and permissions for any file or folder, run:
+    
+    rclone lsjson remote:path --stat -M --onedrive-metadata-permissions read
+    
+    See the OneDrive backend docs for a table of all the supported metadata
+    properties.
+
+commit 4e07a72dc7f9cdd2b458f5c0f382f00147a0bd9b
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Mar 7 16:13:36 2024 +0000
+
+    fs: Implement --no-update-dir-modtime to disable setting modification times on dirs
+
+commit 99acee7ba02b43f6fbf7bbcd03401bcd819dcdde
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Mar 7 17:09:55 2024 +0000
+
+    operations: remove stray debug
+
+commit bda4f25baa18f648a407848bd78e8b6f3a2e370f
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Mar 5 17:21:06 2024 +0000
+
+    s3: support metadata setting and mapping on server side Copy
+    
+    Before this change the backend would not run the metadata mapper and
+    it would ignore metadata set when doing server side copies.
+
+commit 9f2ce2c7fc330f6441749a3e51325189e5001d48
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Mar 5 17:21:06 2024 +0000
+
+    drive: support metadata setting and mapping on server side Move,Copy
+    
+    Before this change the backend would not run the metadata mapper and
+    it would ignore metadata set when doing server side moves or copies.
+
+commit 6e85a39e9997189d1b828b49a2dc8049c67ad138
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Mar 5 17:21:06 2024 +0000
+
+    local: support metadata setting and mapping on server side Move
+    
+    Before this change the backend would not run the metadata mapper and
+    it would ignore metadata set when doing server side moves.
+
+commit 24b4148b5e894171d8d52a54d1422e798c717a6e
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Mar 5 17:20:44 2024 +0000
+
+    fs: add MetadataAsOpenOptions
+
+commit 41b1250eafcb8018160659a68f22f2e31e50780c
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Mar 6 10:28:53 2024 +0000
+
+    fstests: add tests for Metadata on server side Move and Copy
+
+commit 339d3e8ee63decb35265b54ba3ba0943e64bb349
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Mar 7 12:35:26 2024 +0000
+
+    netstorage,quatrix,seafile: fix Root to return correct directory when pointing to a file
+    
+    This fixes the TestIntegration/FsMkdir/FsPutFiles/FsIsFile/FsRoot
+    integration test.
+
+commit 5750795324c99cf5c0513d76cd3a7e2959a58d04
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Mar 7 12:35:26 2024 +0000
+
+    protondrive: fix encoding of Root method
+    
+    This fixes the TestIntegration/FsMkdir/FsPutFiles/FsIsFile/FsRoot
+    integration test.
+
+commit cdcb8b2a0ac5c64b3ff454851f30ae6036526c10
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Mar 7 14:44:27 2024 +0000
+
+    Add huajin tong to contributors
+
+commit b1ae7df556fbdee3a4153fc8eb7e133293d809e4
+Author: huajin tong <137764712+thirdkeyword@users.noreply.github.com>
+Date:   Thu Mar 7 20:57:15 2024 +0800
+
+    docs: fix some comments
+    
+    Signed-off-by: thirdkeyword <fliterdashen@gmail.com>
+
+commit 431524445eaf3b767e7127fc1eb7f5d2fdc7af2d
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Mar 6 13:26:50 2024 -0500
+
+    combine: fix operations.DirMove across upstreams - fixes #7661
+    
+    Before this change, operations.DirMove would fail when moving a directory, if
+    the src and dest were on different upstreams of a combine remote.
+    
+    The issue only affected operations.DirMove, and not sync.MoveDir, because they
+    checked for server-side-move support in different ways.
+    
+    MoveDir checks by just trying it and seeing what error comes back. This works
+    fine for combine because combine returns fs.ErrorCantDirMove which MoveDir
+    understands what to do with.
+    
+    DirMove, however, only checked whether the function pointer is nil. This is an
+    unreliable way to check for combine, because combine does advertise support for
+    DirMove, despite not always being able to do it.
+    
+    This change fixes the issue by checking the returned error in a manner similar
+    to sync.MoveDir and falling back to individual file moves (copy + delete)
+    depending on which error was returned.
+
+commit 252562d00a757ee8d6913a9ba2c71d00e7fd8541
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Mar 4 02:48:34 2024 -0500
+
+    combine: fix CopyDirMetadata error on upstream root
+    
+    Before this change, operations.CopyDirMetadata would fail with: `internal error:
+    expecting directory string from combine root '' to have SetMetadata method:
+    optional feature not implemented` if the dst was the root directory of a combine
+    upstream. This is because combine was returning a *fs.Dir, which does not
+    satisfy the fs.SetMetadataer interface.
+    
+    While it is true that combine cannot set metadata on the root of an upstream
+    (see also #7652), this should not be considered an error that causes sync to do
+    high-level retries, abort without doing deletes, etc.
+    
+    This change addresses the issue by creating a new type of DirWrapper that is
+    allowed to fail silently, for exceptional cases such as this where certain
+    special directories have more limited abilities than what the Fs usually
+    supports.
+    
+    It is possible that other similar wrapping backends (Union?) may need this same
+    fix.
+
+commit 6a72cfd6e1432afb076600064c312b777d1b74dc
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Mar 4 00:57:27 2024 -0500
+
+    operations: fix typo in log messages
+    
+    I assume this must be a typo as %T of dir would only ever print "string"
+
+commit 354ea6fff350fd34be42d3cbbcbffa59bb31b222
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Mar 4 03:39:37 2024 -0500
+
+    docs: update to reflect dir modtime/metadata support
+
+commit 8c69455c37966e6686f9f8486b2ecf95ef809229
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Feb 28 19:29:38 2024 -0500
+
+    sync: don't set dir modtimes if already set
+    
+    Before this change, directory modtimes (and metadata) were always synced from
+    src to dst, even if already in sync (i.e. their modtimes already matched.) This
+    potentially required excessive API calls, made logs noisy, and was potentially
+    problematic for backends that create "versions" or otherwise log activity
+    updates when modtime/metadata is updated.
+    
+    After this change, a new DirsEqual function is added to check whether dirs are
+    equal based on a number of factors such as ModifyWindow and sync flags in use.
+    If the dirs are equal, the modtime/metadata update is skipped.
+    
+    For backends that require setDirModTimeAfter, the "after" sync is performed only
+    for dirs that could have been changed by the sync (i.e. dirs containing files
+    that were created/updated.)
+    
+    Note that dir metadata (other than modtime) is not currently considered by
+    DirsEqual, consistent with how object metadata is synced (only when objects are
+    unequal for reasons other than metadata).
+    
+    To sync dir modtimes and metadata unconditionally (the previous behavior), use
+    --ignore-times.
+
+commit fd8faeb0e6289f6b56699c3fceb102f449d3de53
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Feb 5 02:58:11 2024 -0500
+
+    vfs: fix unicode normalization on macOS - fixes #7072
+    
+    Before this change, the VFS layer did not properly handle unicode normalization,
+    which caused problems particularly for users of macOS. While attempts were made
+    to handle it with various `-o modules=iconv` combinations, this was an imperfect
+    solution, as no one combination allowed both NFC and NFD content to
+    simultaneously be both visible and editable via Finder.
+    
+    After this change, the VFS supports `--no-unicode-normalization` (default `false`)
+    via the existing `--vfs-case-insensitive` logic, which is extended to apply to both
+    case insensitivity and unicode normalization form.
+    
+    This change also adds an additional flag, `--vfs-block-norm-dupes`, to address a
+    probably rare but potentially possible scenario where a directory contains
+    multiple duplicate filenames after applying case and unicode normalization
+    settings. In such a scenario, this flag (disabled by default) hides the
+    duplicates. This comes with a performance tradeoff, as rclone will have to scan
+    the entire directory for duplicates when listing a directory. For this reason,
+    it is recommended to leave this disabled if not needed. However, macOS users may
+    wish to consider using it, as otherwise, if a remote directory contains both NFC
+    and NFD versions of the same filename, an odd situation will occur: both
+    versions of the file will be visible in the mount, and both will appear to be
+    editable, however, editing either version will actually result in only the NFD
+    version getting edited under the hood. `--vfs-block-norm-dupes` prevents this
+    confusion by detecting this scenario, hiding the duplicates, and logging an
+    error, similar to how this is handled in `rclone sync`.
+
+commit dcdbad35543b5396f4f1cbb39afc0b4abfd8d0ec
+Author: Kyle Reynolds <kylereynoldsdev@gmail.com>
+Date:   Wed Mar 6 07:26:53 2024 -0700
+
+    bisync: clarify file operation directions in dry-run logs - fixes #7029
+    
+    Before this change, NOTICE log messages during bisync dry runs were unclear as
+    to the direction of the skipped operation (Path1 to 2 vs. 2 to 1.) This change
+    adjusts the cmd/bisync/log.go indent function to be more expressive about
+    direction.
+
+commit effad3fe4bd4cc8d7e362bce2c70346faf859286
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Mar 6 12:42:38 2024 +0000
+
+    build: fix CVE-2024-24786 by upgrading google.golang.org/protobuf
+    
+    See: https://pkg.go.dev/vuln/GO-2024-2611
+
+commit 692af42858466e3e3789fe6d1b375b9ac9d4b8b2
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 1 11:39:21 2024 +0000
+
+    operations: fix TestSetDirModTime for backends with SetDirModTime but not Metadata
+
+commit 1693d7ad0f53a550efda8f9608da282dd50aa94a
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 1 11:29:08 2024 +0000
+
+    sftp: set DirModTimeUpdatesOnWrite to fix integration tests
+
+commit 3bb9394ae538dbda808f5fb713525500b43e0a4d
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 1 11:18:24 2024 +0000
+
+    operations: fix TestMkdirModTime test
+    
+    This was failing on backends that didn't support metadata but did
+    support setting directory modtimes.
+
+commit be39e9991892bd27a41c59817373c4c260236b27
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Mar 1 10:56:48 2024 +0000
+
+    sync: fix TestMoveEmptyDirectories so they work on backends which don't support DirModTimes
+
+commit 6e28edeb9aa1c18e27faf641729b2cbc259fe13a
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Feb 29 17:55:36 2024 +0000
+
+    cache: fix crash in tests which assumed local could Purge
+
+commit d50572b1083b72deba6a6337f41643371f16f002
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 17 11:47:33 2024 +0000
+
+    operations: add operations/hashsum to the rc as rclone hashsum equivalent
+    
+    Fixes #7569
+
+commit 0b8689dc28038193ded573a57689a465d3870b46
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Jan 19 10:35:02 2024 +0000
+
+    rc: Add GetFsNamedFileOK to get an fs which could also be a file
+
+commit 5994fcfed8f968a4a952b8e6b477ebcaeb9979bf
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Jan 19 10:34:03 2024 +0000
+
+    fs/cache: add PutErr to add an fs.Fs with an fs.ErrorIsFile error to the cache
+
+commit e3f6f688858530193bd136f2fb819bb3207c9525
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Jan 19 10:33:24 2024 +0000
+
+    lib/cache: add PutErr to put a value with an error into the cache
+
+commit 6ff1b6c50572d68778e8954a236e3ab343bff860
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 7 21:50:22 2024 +0000
+
+    local: delete backend implementation of Purge to speed up and make stats
+    
+    In this commit (2014 for v1.02) Purge was implemented for the local
+    backend:
+    
+    1527e64ee756e32b local: Implement Purger interface
+    
+    This appeared to be implemented just to make a Purge and doesn't
+    appear to do anything useful.
+    
+    It is in fact significatly worse than the rclone fallback purge since
+    it doesn't operate in parallel or update stats.
+    
+    This patch removes the Purge routine for a consequent speed up and
+    showing of stats.
+    
+    See: https://forum.rclone.org/t/progress-flag-for-rclone-purge/44416
+
+commit 4a049c12fe3bb5bc9abadc9e1bb2d334b53fd94a
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Feb 12 17:26:48 2024 +0000
+
+    copyurl: add troubleshooting section to the docs
+    
+    See: https://forum.rclone.org/t/copyurl-fails-with-stream-error-wget-and-curl-works/44382/2
+
+commit 15890b7ce73583087431b148e990b8dcfd08f2d9
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Nov 23 10:12:37 2023 +0000
+
+    cmd: make auto completion work for all shells and reduce the size
+    
+    This updates the bash completion to work with GenBashCompletionV2
+    which cuts down the size of the completion file dramatically.
+    
+    See: https://forum.rclone.org/t/request-make-remote-path-completion-work-for-fish-and-zsh/42982/
+    See: #7000
+
+commit 186bb85c4431123b95c20807775fdb2c5cbc10d8
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Feb 29 14:46:31 2024 +0000
+
+    crypt: add missing error check spotted by linter
+
+commit 4c6d2c5410c63e9c121e3ed54b3078b8de6828ef
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Dec 18 11:35:13 2023 -0500
+
+    crypt: improve handling of undecryptable file names - fixes #5787 fixes #6439 fixes #6437
+    
+    Before this change, undecryptable file names would be skipped very quietly
+    (there was a log warning, but only at DEBUG level),
+    failing to alert users of a potentially serious issue that needs attention.
+    
+    After this change, the log level is raised to NOTICE by default and a new
+    --crypt-strict-names flag allows raising an error, for users who may prefer not
+    to proceed if such an issue is detected.
+    
+    See https://forum.rclone.org/t/skipping-undecryptable-file-name-should-be-an-error/27115
+    https://github.com/rclone/rclone/issues/5787
+
+commit f5f86786b27290964d3b6b29790f1d245f66aa1d
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 6 16:00:34 2024 +0000
+
+    sync: implement directory sync for mod times and metadata
+    
+    Directory mod times are synced by default if the backend is capable
+    and directory metadata is synced if the --metadata flag is provided
+    and the backend is capable.
+    
+    This updates the bisync golden tests also which were affected by
+    --dry-run setting of directory modtimes.
+    
+    Fixes #6685
+
+commit 15579c2195e00490fe89d54b650015a822a558b7
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Feb 26 13:44:55 2024 +0000
+
+    fstests: factor out fstest.NewObject function
+
+commit e8fe0b055336b30d5ed3dd6453b721fc473accfa
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 6 15:59:19 2024 +0000
+
+    operations: Implement CopyDirMetadata, CopyDirModTime and SetDirModTime
+
+commit 09953d77b58f3dca607df08bfe216e3b21b8fcea
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 7 21:28:27 2024 +0000
+
+    lsjson,lsf: make sure metadata appears for directories
+
+commit e4d0055b3eaaf659e2a4782e1413825a99afcc2c
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 7 21:17:33 2024 +0000
+
+    drive: implement modtime and metadata setting for directories
+
+commit a60da2ef388ca1b71433e6263c8855bff733f881
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 27 17:12:07 2024 +0000
+
+    local: fix setting of btime on directories on Windows
+    
+    Before this change this would give errors like this
+    
+        failed to set metadata on directory: failed to set birth (creation) time: Access is denied.
+    
+    This was caused by opening the directory in the wrong mode.
+
+commit 7b01564f837f402178ca9b19bba14d6a7b0ae5a1
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 6 16:02:03 2024 +0000
+
+    local: implement modtime and metadata for directories
+    
+    A consequence of this is that fs.Directory returned by the local
+    backend will now have a correct size in (rather than -1). Some tests
+    depended on this and have been fixed by this commit too.
+
+commit 39db8caff1d5d4e572b7410d195a3aaec76b533f
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 27 11:04:38 2024 +0000
+
+    cache,chunker,combine,compress,crypt,hasher,union: implement MkdirMetadata and related Features
+
+commit 0297542f6bce63736bc03b7165b0657c79957aba
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Jan 13 08:19:37 2024 -0500
+
+    cache,chunker,combine,compress,crypt,hasher,union: implement DirSetModTime (if supported by wrapped remote)
+
+commit 17c0ecc72cd9c2f6eea5a296577607798661e67d
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Jan 13 08:19:37 2024 -0500
+
+    sftp: implement DirSetModTime
+
+commit cbcb2951856f1eb2d1e076bbee597ccdabb17bdf
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Jan 13 08:19:37 2024 -0500
+
+    drive: implement DirSetModTime
+
+commit 67e3725205a79c6f0a3c6f5a9e9a0904206ccf15
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Jan 13 08:19:37 2024 -0500
+
+    local: implement DirSetModTime
+
+commit 61d76ae47dbea3f4db95368ab602008e33c1c5c2
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Feb 22 11:13:32 2024 +0000
+
+    fstests: add integration tests for Directory Metadata and ModTime
+
+commit fd1ca2dfe8d3e5828dbf83996e0d53ab5a6d3d35
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 7 15:00:23 2024 +0000
+
+    fs: allow Metadata calls to be called with Directory or Object
+    
+    This involved adding the Fs() method to DirEntry as it is needed in
+    the metadata mapper.
+    
+    Unspecialised fs.Dir objects will return a new fs.Unknown from their
+    Fs() methods as they are not specific to any given Fs.
+
+commit e1032f693f59b1ed9eae0969b4b3b5e64ac57590
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Feb 23 16:02:18 2024 +0000
+
+    fs: add DirWrapper for wrapping Directory-s with optional methods
+
+commit a4cadd112815aeca03aa6ab8d7330049f32dd198
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Feb 5 17:19:43 2024 +0000
+
+    fs: add Directory Metadata flags for backends and interfaces
+    
+    Add backend flags
+    - ReadDirMetadata
+    - WriteDirMetadata
+    - WriteDirSetModTime
+    - UserDirMetadata
+    - DirModTimeUpdatesOnWrite
+    
+    Add Metadata/SetMetadata for directories.
+    
+    Add MkdirMetadata optional feature
+
+commit 6da52d76a70bb8f69ced1d3b6ef260626e3ce03a
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Dec 19 12:00:37 2023 -0500
+
+    fs: implement DirSetModTime optional feature
+
+commit 71a1bbb2be65a1e4fd1a80128acb430a477449f0
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 6 10:14:11 2024 +0000
+
+    errcount: factor errcount abstraction from operations
+
+commit 8f0e9f9f6bd78f6ac7488ac48bbe7e9a9ba418ab
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 12:18:03 2024 +0000
+
+    mega: fix panic with go1.22
+    
+    Before this fix rclone would crash with
+    
+        panic: encoding alphabet includes duplicate symbols
+    
+    When compiled with go1.22. This was fixed upstream in
+    
+    https://github.com/t3rm1n4l/go-mega/issues/48
+    
+    And this just pulls in the fix.
+    
+    Fixes #7639
+
+commit 072d1f10ab41520207f5bb06adef1aa353afd98f
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Feb 20 10:31:11 2024 +0000
+
+    serve webdav: fix --baseurl without leading /
+    
+    The webdav server needs the prefix passed to it with a leading /
+    otherwise it does not remove it properly.
+    
+    The docs state that a leading slash is optional so this patch adds one
+    if not present.
+    
+    See: https://forum.rclone.org/t/cant-rename-files-in-rclone-serve-webdav-with-baseurl-maybe-wrong-handling-of-move-request-method/44637
+
+commit 5014348229add9c0ec74dc23d9d6b3d960b140fd
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 18:08:34 2024 +0000
+
+    Add Anders Swanson to contributors
+
+commit ed78ac7c921b9a9302e1175d935ae6b854e605bb
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 18:08:34 2024 +0000
+
+    Add Joe Cai to contributors
+
+commit 53d873d60dfe3fa1a0933d3c4a9d082f19385fc5
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 18:08:34 2024 +0000
+
+    Add Dan McArdle to contributors
+
+commit f2c35fdec67bb2eb5cad157227127d46b1192ea4
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 18:08:34 2024 +0000
+
+    Add Gabriel Ramos to contributors
+
+commit 1c69b20ed7d7e81f4c690294320515f9051fe905
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 21 18:08:34 2024 +0000
+
+    Add Jack Provance to contributors
+
+commit 547c63555229c9865307752247010017d964b6d9
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 18 05:29:20 2024 -0500
+
+    mailru: add override for TestApplyTransforms - #7591
+    
+    mailru is unable to handle filenames with certain combining characters (for
+    example: йěáñ), and is therefore incapable of testing ApplyTransforms. (It is
+    also therefore incapable of fully supporting --no-unicode-normalization.)
+    
+    The same override is applied to chunker when wrapping mailru.
+
+commit f0d9117ff3f1f00c7d9168a75a3f4d5d25cbf46d
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 18 05:17:34 2024 -0500
+
+    linkbox: add override for TestFixCase - #7591
+    
+    linkbox already has an override for TestCaseInsensitiveMoveFile, and being able
+    to handle case-insensitive moves is a prerequisite for TestFixCase.
+
+commit 9d2bd163c7e134dc3ec6e93622d9e893823e0e01
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 18 05:03:39 2024 -0500
+
+    opendrive: fix moving file/folder within the same parent dir - #7591
+    
+    Before this change, moving (renaming) a file or folder to a different name
+    within the same parent directory would fail, due to using the wrong API
+    operation ("/file/move_copy.json" and "/folder/move_copy.json", instead of the
+    separate "/file/rename.json" and "/folder/rename.json" that opendrive has for
+    this purpose.)
+    
+    After this change, Move and DirMove check whether the move is within the same
+    parent dir. If so, "rename" is used. If not, "move_copy" is used, like before.
+
+commit db8fb5ceda34e2828391180fdf86d68ec5474797
+Author: Anders Swanson <anders.swanson@oracle.com>
+Date:   Tue Oct 31 15:04:40 2023 -0700
+
+    oracleobjectstorage: supports workload identity authentication for OKE
+    
+    Signed-off-by: Anders Swanson <anders.swanson@oracle.com>
+
+commit a1e66cc5e84f1dc582fa26c6df754ce092595177
+Author: Joe Cai <joe.cai@bigcommerce.com>
+Date:   Thu Feb 8 13:34:22 2024 +1100
+
+    swift: Avoid unnecessary container versioning check
+    
+    Container versioning check is only needed for non-empty large objects.
+
+commit 7b8bbe531e0f062254b2d8ffe1e6284cd62309f6
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Feb 8 00:59:13 2024 -0500
+
+    nfsmount: fix --volname being ignored #7503
+    
+    Before this change, nfsmount ignored the --volname flag. After this change, the --
+    volname flag is respected, making it possible to set a custom volume name.
+    
+    macOS users should note that Finder will show the correct volume name in most
+    places, but a notable exception is the sidebar, which will show "localhost".
+    This seems to be a system limitation (at least without `sudo`), but see the
+    discussion at https://github.com/rclone/rclone/issues/7503#issuecomment-1933997678
+    for some possible workarounds.
+
+commit 0e2f1d64e36145b791b8017d235c158b3a70ec79
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Feb 6 02:53:12 2024 -0500
+
+    nfsmount: fix exit after external unmount #7503
+    
+    Before this change, if a user unmounted externally (for example, via the Finder
+    UI), rclone would not be aware of this and wait forever to exit -- effectively
+    causing a deadlock that would require Ctrl+C to terminate.
+    
+    After this change, when the handler detects an external unmount, it calls a
+    function which allows rclone to cleanly shutdown the VFS and exit.
+
+commit 5638a3841fddf0bfa73a70ae95586890800358bc
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Jan 25 11:19:21 2024 -0500
+
+    serve nfs: fix writing files via Finder on macOS - fixes #7503
+    
+    Before this change, writing files to an `nfsmount` via Finder on macOS would
+    cause critical errors, rendering `nfsmount` effectively unusable on macOS. This
+    change fixes the issue so that writes via Finder should be possible.
+    
+    The issue was primarily caused by the handler's HandleLimit being set to -1. -1 is
+    the correct default for a NullAuthHandler, but not for a CachingHandler, which
+    interprets -1 not as "no limit" but as "no cache".
+    
+    This change sets a high default of 1000000, and gives the user control over it
+    with a new --nfs-cache-handle-limit flag (available in both `serve nfs` and
+    `nfsmount`. A minimum of 5 is enforced, as any lower than this will be
+    insufficient to support directory listing.
+
+commit 6986a43b685dc187731af2382ef914f3a65cc95b
+Author: Dan McArdle <d@nmcardle.com>
+Date:   Sat Feb 10 12:44:17 2024 -0500
+
+    bisync: delete flushCache() function from tests
+    
+    The flushCache() function has a bug that causes it to never actually
+    flush the cache. Specifically, it checks whether DirCacheFlush is nil,
+    but never calls it.
+    
+    The tests are already passing without flushing the dir cache, so this
+    commit just deletes flushCache() and its call sites.
+    
+    Fixes rclone/rclone#7623
+
+commit 11c6489fd1bc466018c3270488bf23338236f68d
+Author: Oksana Zhykina <o.zhykina@maytech.net>
+Date:   Mon Feb 5 15:37:21 2024 +0200
+
+    quatrix: add option to skip project folders
+
+commit 43823bc9252db376d18b9ac5a3ac5ed9c71062d7
+Author: Gabriel Ramos <109390599+gabrielramos02@users.noreply.github.com>
+Date:   Sun Feb 18 01:29:23 2024 -0500
+
+    webdav: reduce priority of chunks upload log
+
+commit a3b661be0d9e60d8056953624b29ba6f6eb7051b
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Fri Feb 9 22:48:30 2024 +0000
+
+    build(deps): bump golangci/golangci-lint-action from 3 to 4
+    
+    Bumps [golangci/golangci-lint-action](https://github.com/golangci/golangci-lint-action) from 3 to 4.
+    - [Release notes](https://github.com/golangci/golangci-lint-action/releases)
+    - [Commits](https://github.com/golangci/golangci-lint-action/compare/v3...v4)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: golangci/golangci-lint-action
+      dependency-type: direct:production
+      update-type: version-update:semver-major
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+
+commit f113c68b13ba6c70e70b129f28d9b2d0177f7b2f
+Author: Jack Provance <49460795+njprov@users.noreply.github.com>
+Date:   Sun Feb 18 01:16:23 2024 -0500
+
+    docs: Fix a heading level in webdav.md documentation (#7631)
+    
+    This fixes a heading problem under the "Provider Notes" section.
+
+commit 137f7f62fbc4161b67360a45cb761a3bf255aa2c
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Feb 9 10:37:14 2024 -0500
+
+    sync: use operations.DirMove instead of sync.MoveDir for --fix-case - #7591
+    
+    This should be more efficient for the purposes of --fix-case, as operations.DirMove
+    accepts `srcRemote` and `dstRemote` arguments, while sync.MoveDir does not.
+    
+    This also factors the two-step-move logic to operations.DirMoveCaseInsensitive, so
+    that it is reusable by other commands.
+
+commit dfe76570a1de18ccf67d6c70b8c66c9a325bafe3
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Feb 8 19:42:10 2024 -0500
+
+    operations: skip backends incapable of testing TestApplyTransforms - #7591
+    
+    This adds a step to detect whether the backend is capable of supporting the
+    feature, and skips the test if not. A backend can be incapable if, for example,
+    it is non-case-preserving or automatically converts NFD to NFC.
+
+commit f4c058e13e3b0af3bed5c4e6db39599e5e440694
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 11 22:54:34 2024 -0500
+
+    bisync: use global --retries and --retries-sleep flags instead of overriding
+
+commit 407a0f3733c4416fdcd0b220ec70f8d78c8a99c2
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 11 22:34:25 2024 -0500
+
+    cmd: refactor --retries and --retries-sleep to global config
+    
+    This change moves the --retries and --retries-sleep flags/variables from cmd to
+    config (consistent with --low-level-retries), so that they can be more easily
+    referenced from subcommands.
+
+commit b14269fd23a309e86b5e0d019501cb897a83ba6a
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Jan 9 10:07:53 2024 -0500
+
+    bisync: add support for --retries-sleep - fixes #7555
+    
+    Before this change, bisync supported --retries but not --retries-sleep.
+    This change adds support for --retries-sleep.
+
+commit 76b7bcd4d7a95d52aff567373970d31c45e33327
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Jan 9 04:08:57 2024 -0500
+
+    bisync: reset errors between retries
+    
+    Before this change, in the event of a retryable error, bisync would always retry
+    the maximum number of times allowed by the `--retries` flag, even if one of the
+    retries was successful. This change fixes the issue, so that bisync moves on
+    after the first successful retry.
+
+commit 782ab3f5820d607c23f13c7a588879cb55d31759
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Jan 17 21:09:19 2024 -0500
+
+    bisync: clean up docs
+    
+    (as the flags in docs/content/bisync.md do not update automatically, unlike
+    docs/content/commands/rclone_bisync.md)
+
+commit 9c6325c131aaf03c85f4f3d23d26acdf734aea6e
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Feb 11 23:10:24 2024 -0500
+
+    backend: rename variables to fix CI lint test failures
+
+commit 2abeda5961615c304348c4886a1d42f4ae30c876
+Author: Volodymyr <142890760+vkit-maytech@users.noreply.github.com>
+Date:   Fri Feb 9 18:44:45 2024 +0200
+
+    quatrix: fix Content-Range header
+    
+    This change does not actually affect uploads. Just to be right according to definition of Content-Range in
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range#range-end
+
+commit 885a5430234e8f78e9a7e4e26d0d2ceeb4adb7c1
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Jan 23 16:55:56 2024 -0500
+
+    operations: use --download for TestApplyTransforms #7591
+    
+    This makes it possible to run the test even on remotes without MD5 support.
+
+commit f3680d222c1a932884d10f212e163add4809026d
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Jan 23 16:51:07 2024 -0500
+
+    operations: fix TestCaseInsensitiveMoveFileDryRun on chunker integration tests #7591
+    
+    It appears that ci.DryRun = true affects the behavior of r.WriteObject on
+    chunker only, and no other remotes. This change puts a quick bandaid on it by
+    setting it later on in the test, but perhaps the underlying issue warrants a
+    closer look at some point... is chunker checking ci.DryRun itself in a way that
+    no other remote does? If so, should it? (Does this break encapsulation?)
+
+commit d2b37cf61e185fbe315954eb90b66b5f2a049afd
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Jan 23 16:44:48 2024 -0500
+
+    operations: fix case-insensitive moves in operations.Move #7591
+    
+    Before this change, operations.moveOrCopyFile had a special section to detect
+    and handle changing case of a file on a case insensitive remote, but
+    operations.Move did not. This caused operations.Move to fail for certain
+    backends that are incapable of renaming a file in-place to an equal-folding name.
+    (Not all case-insensitive backends have this limitation -- for example, Dropbox
+    does but macOS local does not.)
+    
+    After this change, the special two-part-move section from
+    operations.moveOrCopyFile is factored out to its own function,
+    moveCaseInsensitive, which is then called from both operations.moveOrCopyFile
+    and operations.Move.
+
+commit 83f61a9cfb8d914495b3aca51c2e91f92e1ac5a0
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Feb 3 11:14:23 2024 +0000
+
+    s3: GCS provider: fix server side copy of files bigger than 5G
+    
+    GCS gives NotImplemented errors for multi-part server side copies. The
+    threshold for these is currently set just below 5G so any files bigger
+    than 5G that rclone attempts to server side copy will fail.
+    
+    This patch works around the problem by adding a quirk for GCS raising
+    --s3-copy-cutoff to the maximum. This means that rclone will never use
+    multi-part copies for files in GCS. This includes files bigger than
+    5GB which (according to AWS documentation) must be copied with
+    multi-part copy. However this seems to work with GCS.
+    
+    See: https://forum.rclone.org/t/chunker-uploads-to-gcs-s3-fail-if-the-chunk-size-is-greater-than-the-max-part-size/44349/
+    See: https://issuetracker.google.com/issues/323465186
+
+commit b206496f6318d9c95bfa481e915f15bc9c3a8803
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Feb 8 09:39:53 2024 +0000
+
+    b2: clarify exactly what --b2-download-auth-duration does in the docs
+    
+    See: https://forum.rclone.org/t/what-does-b2-download-auth-duration-mean/44504/
+
+commit 24fdecf10788d40c7d60c4371f4299e0eddcf236
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Feb 3 12:08:23 2024 +0000
+
+    ftp: fix mkdir with rsftp which is returning the wrong code
+    
+    On a successfull MKD, rsftp seems to return code 250 whereas we and
+    the RFC expects 257.
+    
+    This patch makes rclone accept 250 here as well.
+    
+    See: https://forum.rclone.org/t/rclone-pop-up-an-i-o-error-when-creating-a-folder-in-a-mounted-ftp-drive/44368/3
+
+commit 9bd7262dfc7a79c2c28bf6c9e5d34fee7a7a1a5b
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Feb 7 22:09:48 2024 +0000
+
+    Add DanielEgbers to contributors
+
+commit a0dff2dd9cc6a67c6042639abdf7f958a4313a64
+Author: DanielEgbers <27849724+DanielEgbers@users.noreply.github.com>
+Date:   Mon Feb 5 12:48:51 2024 +0100
+
+    Seafile: Fix download/upload error when FILE_SERVER_ROOT is relative
+    
+    A seafile server can be configured to use a relative URL as
+    FILE_SERVER_ROOT in order to support more than one hostname/ip. (see
+    https://github.com/haiwen/seahub/issues/3398#issuecomment-506920360 )
+    
+    The previous backend implementation always expected an absolute
+    download/upload URL, resulting in an "unsupported protocol scheme"
+    error.
+    
+    With this commit it supports both absolute and relative.
+
+commit 91b54aafccc3aed01a5389864e8ef3902286b406
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 18 16:44:13 2024 +0000
+
+    rc: add srcFs and dstFs to core/stats and core/transferred stats
+    
+    Before this change it wasn't possible to see where transfers were
+    going from and to in core/stats and core/transferred.
+    
+    When use in rclone mount in particular this made interpreting the
+    stats very hard.
+
+commit 81a29e68954810ca6bcedcd4efe5aba0711fce8a
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Feb 2 11:42:55 2024 +0000
+
+    Add Thomas Müller to contributors
+
+commit f762ef668feb742875015d511a795656732f8301
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Feb 2 11:42:55 2024 +0000
+
+    Add Michael Eischer to contributors
+
+commit 99b9062551dfbd15ed8e4d1d8b1ae48199545e12
+Author: Thomas Müller <1005065+DeepDiver1975@users.noreply.github.com>
+Date:   Thu Oct 12 15:51:11 2023 +0200
+
+    owncloud: add config `owncloud_exclude_shares` which allows to exclude shared files and folders when listing remote resources
+
+commit ef2c5a199870bc3cfdb0b854576c7749350c7aa7
+Author: Michael Eischer <michael.eischer@gmx.de>
+Date:   Mon Jan 29 18:54:23 2024 +0100
+
+    serve restic: fix error handling
+    
+    * serve restic: return internal error if listing failed
+    
+    If listing a remote failed, then rclone returned http status "not
+    found". This has become a problem since restic 0.16.0 which ignores "not
+    found"-errors while listing a directory.
+    
+    Just return internal server error, if something unexpected happens while
+    listing a directory.
+    
+    * serve restic: fix error handling if getting a file fails
+    
+    If the call to `newObject` in `serveObject` fails, then rclone always
+    returned a "not found" error. This prevents restic from distinguishing
+    permanent "not found" errors from everything else.
+    
+    Thus, only return "not found" if the object is not found and an internal
+    server error otherwise.
+
+commit 6e4dd2ab965b009607823b575b2e751e7648031d
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 25 16:35:33 2024 +0000
+
+    docs: ignore amazon cloud drive doc stub when building the docs
+
+commit 0c17a17e1974a765f6d629adf91777e5f78484ba
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 24 16:40:47 2024 +0000
+
+    Changelog updates from Version v1.65.2
+
+commit 03295bbc3ce8787f43cf75379e4e341fe07c9ba7
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Jan 23 09:53:47 2024 +0000
+
+    azureblob: fix data corruption bug #7590
+    
+    It was reported that rclone copy occasionally uploaded corrupted data
+    to azure blob.
+    
+    This turned out to be a race condition updating the block count which
+    caused blocks to be duplicated.
+    
+    This bug was introduced in this commit in v1.64.0 and will be fixed in v1.65.2
+    
+    0427177857a8d607 azureblob: implement OpenChunkWriter and multi-thread uploads #7056
+    
+    This race only seems to happen if `--checksum` is used but can happen otherwise.
+    
+    Unfortunately Azure blob does not check the MD5 that we send them so
+    despite sending incorrect data this corruption is not detected. The
+    corruption is detected when rclone tries to download the file, so
+    attempting to copy the files back to local disk will result in errors
+    such as:
+    
+        ERROR : file.pokosuf5.partial: corrupted on transfer: md5 hash differ "XXX" vs "YYY"
+    
+    This adds a check to test the blocklist we upload is as we expected
+    which would have caught the problem had it been in place earlier.
+
+commit b3a1f667597fbe09208f4a9eb3869282e20cbf13
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 24 11:25:47 2024 +0000
+
+    build: add -race flag to integration tester test_all
+
+commit a947f75d3b1f380ce4e8e8bb75848cf42bc4764e
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 24 11:27:14 2024 +0000
+
+    Add Kyle Reynolds to contributors
+
+commit ae0a4c8bbf5b3d88c1aedef0b1f0f6eadfaf76e4
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 24 11:27:14 2024 +0000
+
+    Add Tera to contributors
+
+commit 783599114760d09684bc5ed44f4209813d127484
+Author: Kyle Reynolds <kylereynoldsdev@gmail.com>
+Date:   Mon Jan 22 11:46:26 2024 -0500
+
+    fs: add more detailed logging for file includes/excludes
+    
+    This makes a DEBUG log to show why files were included or excluded.
+    
+    Fixes #7463
+
+commit 810644e8735330db1cbd70745802284e8624b423
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Dec 22 14:09:35 2023 -0500
+
+    bisync: add --resync-mode for customizing --resync - fixes #5681
+    
+    Before this change, the path1 version of a file always prevailed during
+    --resync, and many users requested options to automatically select the winner
+    based on characteristics such as newer, older, larger, and smaller. This change
+    adds support for such options.
+    
+    Note that ideally this feature would have been implemented by allowing the
+    existing `--resync` flag to optionally accept string values such as `--resync
+    newer`. However, this would have been a breaking change, as the existing flag
+    is a `bool` and it does not seem to be possible to have a `string` flag that
+    accepts both `--resync newer` and `--resync` (with no argument.) (`NoOptDefVal`
+    does not work for this, as it would force an `=` like `--resync=newer`.) So
+    instead, the best compromise to avoid a breaking change was to add a new
+    `--resync-mode CHOICE` flag that implies `--resync`, while maintaining the
+    existing behavior of `--resync` (which implies `--resync-mode path1`. i.e. both
+    flags are now valid, and either can be used without the other.
+    
+    --resync-mode CHOICE
+    
+    In the event that a file differs on both sides during a `--resync`,
+    `--resync-mode` controls which version will overwrite the other. The supported
+    options are similar to `--conflict-resolve`. For all of the following options,
+    the version that is kept is referred to as the "winner", and the version that
+    is overwritten (deleted) is referred to as the "loser". The options are named
+    after the "winner":
+    
+    - `path1` - (the default) - the version from Path1 is unconditionally
+    considered the winner (regardless of `modtime` and `size`, if any). This can be
+    useful if one side is more trusted or up-to-date than the other, at the time of
+    the `--resync`.
+    - `path2` - same as `path1`, except the path2 version is considered the winner.
+    - `newer` - the newer file (by `modtime`) is considered the winner, regardless
+    of which side it came from. This may result in having a mix of some winners
+    from Path1, and some winners from Path2. (The implementation is analagous to
+    running `rclone copy --update` in both directions.)
+    - `older` - same as `newer`, except the older file is considered the winner,
+    and the newer file is considered the loser.
+    - `larger` - the larger file (by `size`) is considered the winner (regardless
+    of `modtime`, if any). This can be a useful option for remotes without
+    `modtime` support, or with the kinds of files (such as logs) that tend to grow
+    but not shrink, over time.
+    - `smaller` - the smaller file (by `size`) is considered the winner (regardless
+    of `modtime`, if any).
+    
+    For all of the above options, note the following:
+    - If either of the underlying remotes lacks support for the chosen method, it
+    will be ignored and will fall back to the default of `path1`. (For example, if
+    `--resync-mode newer` is set, but one of the paths uses a remote that doesn't
+    support `modtime`.)
+    - If a winner can't be determined because the chosen method's attribute is
+    missing or equal, it will be ignored, and bisync will instead try to determine
+    whether the files differ by looking at the other `--compare` methods in effect.
+    (For example, if `--resync-mode newer` is set, but the Path1 and Path2 modtimes
+    are identical, bisync will compare the sizes.) If bisync concludes that they
+    differ, preference is given to whichever is the "source" at that moment. (In
+    practice, this gives a slight advantage to Path2, as the 2to1 copy comes before
+    the 1to2 copy.) If the files _do not_ differ, nothing is copied (as both sides
+    are already correct).
+    - These options apply only to files that exist on both sides (with the same
+    name and relative path). Files that exist *only* on one side and not the other
+    are *always* copied to the other, during `--resync` (this is one of the main
+    differences between resync and non-resync runs.).
+    - `--conflict-resolve`, `--conflict-loser`, and `--conflict-suffix` do not
+    apply during `--resync`, and unlike these flags, nothing is renamed during
+    `--resync`. When a file differs on both sides during `--resync`, one version
+    always overwrites the other (much like in `rclone copy`.) (Consider using
+    `--backup-dir` to retain a backup of the losing version.)
+    - Unlike for `--conflict-resolve`, `--resync-mode none` is not a valid option
+    (or rather, it will be interpreted as "no resync", unless `--resync` has also
+    been specified, in which case it will be ignored.)
+    - Winners and losers are decided at the individual file-level only (there is
+    not currently an option to pick an entire winning directory atomically,
+    although the `path1` and `path2` options typically produce a similar result.)
+    - To maintain backward-compatibility, the `--resync` flag implies
+    `--resync-mode path1` unless a different `--resync-mode` is explicitly
+    specified. Similarly, all `--resync-mode` options (except `none`) imply
+    `--resync`, so it is not necessary to use both the `--resync` and
+    `--resync-mode` flags simultaneously -- either one is sufficient without the
+    other.
+
+commit 8d3bcc025a405beb411ee17287f72ddf97fc4979
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Dec 23 15:31:33 2023 -0500
+
+    bisync: fix --colors flag
+    
+    quick fix to get around lack of support in fs.Infof etc.
+
+commit 0f549520ef33547f02118f51fed9bda06cb29394
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Dec 17 02:51:12 2023 -0500
+
+    bisync: factor resync to separate file
+
+commit ba16fcfaf56c834dee92f5ce273bb796ec5f1ec3
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Dec 23 11:06:04 2023 -0500
+
+    bisync: skip empty test case dirs
+
+commit 68f09986999824d247d084f3aed81ec957cd0a93
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Dec 15 07:47:15 2023 -0500
+
+    bisync: add options to auto-resolve conflicts - fixes #7471
+    
+    Before this change, when a file was new/changed on both paths (relative to the
+    prior sync), and the versions on each side were not identical, bisync would
+    keep both versions, renaming them with ..path1 and ..path2 suffixes,
+    respectively. Many users have requested more control over how bisync handles
+    such conflicts -- including an option to automatically select one version as
+    the "winner" and rename or delete the "loser". This change introduces support
+    for such options.
+    
+    --conflict-resolve CHOICE
+    
+    In bisync, a "conflict" is a file that is *new* or *changed* on *both sides*
+    (relative to the prior run) AND is *not currently identical* on both sides.
+    `--conflict-resolve` controls how bisync handles such a scenario. The currently
+    supported options are:
+    
+    - `none` - (the default) - do not attempt to pick a winner, keep and rename
+    both files according to `--conflict-loser` and
+    `--conflict-suffix` settings. For example, with the default
+    settings, `file.txt` on Path1 is renamed `file.txt.conflict1` and `file.txt` on
+    Path2 is renamed `file.txt.conflict2`. Both are copied to the opposite path
+    during the run, so both sides end up with a copy of both files. (As `none` is
+    the default, it is not necessary to specify `--conflict-resolve none` -- you
+    can just omit the flag.)
+    - `newer` - the newer file (by `modtime`) is considered the winner and is
+    copied without renaming. The older file (the "loser") is handled according to
+    `--conflict-loser` and `--conflict-suffix` settings (either renamed or
+    deleted.) For example, if `file.txt` on Path1 is newer than `file.txt` on
+    Path2, the result on both sides (with other default settings) will be `file.txt`
+    (winner from Path1) and `file.txt.conflict1` (loser from Path2).
+    - `older` - same as `newer`, except the older file is considered the winner,
+    and the newer file is considered the loser.
+    - `larger` - the larger file (by `size`) is considered the winner (regardless
+    of `modtime`, if any).
+    - `smaller` - the smaller file (by `size`) is considered the winner (regardless
+    of `modtime`, if any).
+    - `path1` - the version from Path1 is unconditionally considered the winner
+    (regardless of `modtime` and `size`, if any). This can be useful if one side is
+    usually more trusted or up-to-date than the other.
+    - `path2` - same as `path1`, except the path2 version is considered the
+    winner.
+    
+    For all of the above options, note the following:
+    - If either of the underlying remotes lacks support for the chosen method, it
+    will be ignored and fall back to `none`. (For example, if `--conflict-resolve
+    newer` is set, but one of the paths uses a remote that doesn't support
+    `modtime`.)
+    - If a winner can't be determined because the chosen method's attribute is
+    missing or equal, it will be ignored and fall back to `none`. (For example, if
+    `--conflict-resolve newer` is set, but the Path1 and Path2 modtimes are
+    identical, even if the sizes may differ.)
+    - If the file's content is currently identical on both sides, it is not
+    considered a "conflict", even if new or changed on both sides since the prior
+    sync. (For example, if you made a change on one side and then synced it to the
+    other side by other means.) Therefore, none of the conflict resolution flags
+    apply in this scenario.
+    - The conflict resolution flags do not apply during a `--resync`, as there is
+    no "prior run" to speak of (but see `--resync-mode` for similar
+    options.)
+    
+    --conflict-loser CHOICE
+    
+    `--conflict-loser` determines what happens to the "loser" of a sync conflict
+    (when `--conflict-resolve` determines a winner) or to both
+    files (when there is no winner.) The currently supported options are:
+    
+    - `num` - (the default) - auto-number the conflicts by automatically appending
+    the next available number to the `--conflict-suffix`, in chronological order.
+    For example, with the default settings, the first conflict for `file.txt` will
+    be renamed `file.txt.conflict1`. If `file.txt.conflict1` already exists,
+    `file.txt.conflict2` will be used instead (etc., up to a maximum of
+    9223372036854775807 conflicts.)
+    - `pathname` - rename the conflicts according to which side they came from,
+    which was the default behavior prior to `v1.66`. For example, with
+    `--conflict-suffix path`, `file.txt` from Path1 will be renamed
+    `file.txt.path1`, and `file.txt` from Path2 will be renamed `file.txt.path2`.
+    If two non-identical suffixes are provided (ex. `--conflict-suffix
+    cloud,local`), the trailing digit is omitted. Importantly, note that with
+    `pathname`, there is no auto-numbering beyond `2`, so if `file.txt.path2`
+    somehow already exists, it will be overwritten. Using a dynamic date variable
+    in your `--conflict-suffix` (see below) is one possible way to avoid this. Note
+    also that conflicts-of-conflicts are possible, if the original conflict is not
+    manually resolved -- for example, if for some reason you edited
+    `file.txt.path1` on both sides, and those edits were different, the result
+    would be `file.txt.path1.path1` and `file.txt.path1.path2` (in addition to
+    `file.txt.path2`.)
+    - `delete` - keep the winner only and delete the loser, instead of renaming it.
+    If a winner cannot be determined (see `--conflict-resolve` for details on how
+    this could happen), `delete` is ignored and the default `num` is used instead
+    (i.e. both versions are kept and renamed, and neither is deleted.) `delete` is
+    inherently the most destructive option, so use it only with care.
+    
+    For all of the above options, note that if a winner cannot be determined (see
+    `--conflict-resolve` for details on how this could happen), or if
+    `--conflict-resolve` is not in use, *both* files will be renamed.
+    
+    --conflict-suffix STRING[,STRING]
+    
+    `--conflict-suffix` controls the suffix that is appended when bisync renames a
+    `--conflict-loser` (default: `conflict`).
+    `--conflict-suffix` will accept either one string or two comma-separated
+    strings to assign different suffixes to Path1 vs. Path2. This may be helpful
+    later in identifying the source of the conflict. (For example,
+    `--conflict-suffix dropboxconflict,laptopconflict`)
+    
+    With `--conflict-loser num`, a number is always appended to the suffix. With
+    `--conflict-loser pathname`, a number is appended only when one suffix is
+    specified (or when two identical suffixes are specified.) i.e. with
+    `--conflict-loser pathname`, all of the following would produce exactly the
+    same result:
+    
+    ```
+    --conflict-suffix path
+    --conflict-suffix path,path
+    --conflict-suffix path1,path2
+    ```
+    
+    Suffixes may be as short as 1 character. By default, the suffix is appended
+    after any other extensions (ex. `file.jpg.conflict1`), however, this can be
+    changed with the `--suffix-keep-extension` flag (i.e. to instead result in
+    `file.conflict1.jpg`).
+    
+    `--conflict-suffix` supports several *dynamic date variables* when enclosed in
+    curly braces as globs. This can be helpful to track the date and/or time that
+    each conflict was handled by bisync. For example:
+    
+    ```
+    --conflict-suffix {DateOnly}-conflict
+    // result: myfile.txt.2006-01-02-conflict1
+    ```
+    
+    All of the formats described [here](https://pkg.go.dev/time#pkg-constants) and
+    [here](https://pkg.go.dev/time#example-Time.Format) are supported, but take
+    care to ensure that your chosen format does not use any characters that are
+    illegal on your remotes (for example, macOS does not allow colons in
+    filenames, and slashes are also best avoided as they are often interpreted as
+    directory separators.) To address this particular issue, an additional
+    `{MacFriendlyTime}` (or just `{mac}`) option is supported, which results in
+    `2006-01-02 0304PM`.
+    
+    Note that `--conflict-suffix` is entirely separate from rclone's main `--sufix`
+    flag. This is intentional, as users may wish to use both flags simultaneously,
+    if also using `--backup-dir`.
+    
+    Finally, note that the default in bisync prior to `v1.66` was to rename
+    conflicts with `..path1` and `..path2` (with two periods, and `path` instead of
+    `conflict`.) Bisync now defaults to a single dot instead of a double dot, but
+    additional dots can be added by including them in the specified suffix string.
+    For example, for behavior equivalent to the previous default, use:
+    
+    ```
+    [--conflict-resolve none] --conflict-loser pathname --conflict-suffix .path
+    ```
+
+commit d031cc138dae08edad68c95a590dc7cefedda834
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Dec 22 10:02:50 2023 -0500
+
+    bisync: check for syntax errors in path args - fixes #7511
+    
+    Before this change, certain shell quoting / escaping errors (particularly on
+    Windows) were not detected by Bisync, possibly resulting in incorrect expansion
+    and confusing errors. In particular, Windows paths with a single trailing
+    backslash followed by a quote would be interpreted as an escaped quote --
+    resulting in the quote and subsequent flags being erroneously considered part
+    of the path.
+    
+    After this change, Bisync specifically checks for a few of the most common
+    patterns, and if detected, exits with a more helpful error message before doing
+    any damage.
+
+commit e71b252b6526febcbd97d2790a4df3538d01e46b
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Dec 18 13:03:14 2023 -0500
+
+    bisync: add overlapping paths check
+    
+    Before this change, Bisync did not check to make sure that Path1 and Path2 do
+    not overlap, nor did it check for overlaps with `--backup-dir`. While `sync`
+    does check for these things, it can sometimes be fooled because of the way
+    Bisync calls it with `--files-from` filters. Relying on sync could also leave a
+    run in a half-finished state if it were to error in one direction but not the
+    other (`--backup-dir` only checks for overlaps with the dest.)
+    
+    After this change, Bisync does its own check up front, so we can quickly return
+    an error and exit before any changes are made.
+
+commit e9cd3e59862637b784399aa4c95384d16afe2279
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Dec 3 03:19:13 2023 -0500
+
+    bisync: allow lock file expiration/renewal with --max-lock - #7470
+    
+    Background: Bisync uses lock files as a safety feature to prevent
+    interference from other bisync runs while it is running. Bisync normally
+    removes these lock files at the end of a run, but if bisync is abruptly
+    interrupted, these files will be left behind. By default, they will lock out
+    all future runs, until the user has a chance to manually check things out and
+    remove the lock.
+    
+    Before this change, lock files blocked future runs indefinitely, so a single
+    interrupted run would lock out all future runs forever (absent user
+    intervention), and there was no way to change this behavior.
+    
+    After this change, a new --max-lock flag can be used to make lock files
+    automatically expire after a certain period of time, so that future runs are
+    not locked out forever, and auto-recovery is possible. --max-lock can be any
+    duration 2m or greater (or 0 to disable). If set, lock files older than this
+    will be considered "expired", and future runs will be allowed to disregard them
+    and proceed. (Note that the --max-lock duration must be set by the process that
+    left the lock file -- not the later one interpreting it.)
+    
+    If set, bisync will also "renew" these lock files every
+    --max-lock_minus_one_minute throughout a run, for extra safety. (For example,
+    with --max-lock 5m, bisync would renew the lock file (for another 5 minutes)
+    every 4 minutes until the run has completed.) In other words, it should not be
+    possible for a lock file to pass its expiration time while the process that
+    created it is still running -- and you can therefore be reasonably sure that
+    any _expired_ lock file you may find was left there by an interrupted run, not
+    one that is still running and just taking awhile.
+    
+    If --max-lock is 0 or not set, the default is that lock files will never
+    expire, and will block future runs (of these same two bisync paths)
+    indefinitely.
+    
+    For maximum resilience from disruptions, consider setting a relatively short
+    duration like --max-lock 2m along with --resilient and --recover, and a
+    relatively frequent cron schedule. The result will be a very robust
+    "set-it-and-forget-it" bisync run that can automatically bounce back from
+    almost any interruption it might encounter, without requiring the user to get
+    involved and run a --resync.
+
+commit 4025f42bd9b6b755a828f59285c0e6321462b349
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Dec 3 00:38:18 2023 -0500
+
+    bisync: Graceful Shutdown, --recover from interruptions without --resync - fixes #7470
+    
+    Before this change, bisync had no mechanism to gracefully cancel a sync early
+    and exit in a clean state. Additionally, there was no way to recover on the
+    next run -- any interruption at all would cause bisync to require a --resync,
+    which made  bisync more difficult to use as a scheduled background process.
+    
+    This change introduces a "Graceful Shutdown" mode and --recover flag to
+    robustly recover from even un-graceful shutdowns.
+    
+    If --recover is set, in the event of a sudden interruption or other un-graceful
+    shutdown, bisync will attempt to automatically recover on the next run, instead
+    of requiring --resync. Bisync is able to recover robustly by keeping one
+    "backup" listing at all times, representing the state of both paths after the
+    last known successful sync. Bisync can then compare the current state with this
+    snapshot to determine which changes it needs to retry. Changes that were synced
+    after this snapshot (during the run that was later interrupted) will appear to
+    bisync as if they are "new or changed on both sides", but in most cases this is
+    not a problem, as bisync will simply do its usual "equality check" and learn
+    that no action needs to be taken on these files, since they are already
+    identical on both sides.
+    
+    In the rare event that a file is synced successfully during a run that later
+    aborts, and then that same file changes AGAIN before the next run, bisync will
+    think it is a sync conflict, and handle it accordingly. (From bisync's
+    perspective, the file has changed on both sides since the last trusted sync,
+    and the files on either side are not currently identical.) Therefore, --recover
+    carries with it a slightly increased chance of having conflicts -- though in
+    practice this is pretty rare, as the conditions required to cause it are quite
+    specific. This risk can be reduced by using bisync's "Graceful Shutdown" mode
+    (triggered by sending SIGINT or Ctrl+C), when you have the choice, instead of
+    forcing a sudden termination.
+    
+    --recover and --resilient are similar, but distinct -- the main difference is
+    that --resilient is about _retrying_, while --recover is about _recovering_.
+    Most users will probably want both. --resilient allows retrying when bisync has
+    chosen to abort itself due to safety features such as failing --check-access or
+    detecting a filter change. --resilient does not cover external interruptions
+    such as a user shutting down their computer in the middle of a sync -- that is
+    what --recover is for.
+    
+    "Graceful Shutdown" mode is activated by sending SIGINT or pressing Ctrl+C
+    during a run. Once triggered, bisync will use best efforts to exit cleanly
+    before the timer runs out. If bisync is in the middle of transferring files, it
+    will attempt to cleanly empty its queue by finishing what it has started but
+    not taking more. If it cannot do so within 30 seconds, it will cancel the
+    in-progress transfers at that point and then give itself a maximum of 60
+    seconds to wrap up, save its state for next time, and exit. With the -vP flags
+    you will see constant status updates and a final confirmation of whether or not
+    the graceful shutdown was successful.
+    
+    At any point during the "Graceful Shutdown" sequence, a second SIGINT or Ctrl+C
+    will trigger an immediate, un-graceful exit, which will leave things in a
+    messier state. Usually a robust recovery will still be possible if using
+    --recover mode, otherwise you will need to do a --resync.
+    
+    If you plan to use Graceful Shutdown mode, it is recommended to use --resilient
+    and --recover, and it is important to NOT use --inplace, otherwise you risk
+    leaving partially-written files on one side, which may be confused for real
+    files on the next run. Note also that in the event of an abrupt interruption, a
+    lock file will be left behind to block concurrent runs. You will need to delete
+    it before you can proceed with the next run (or wait for it to expire on its
+    own, if using --max-lock.)
+
+commit b4216648e46adebb394a63372124b71cdf41e414
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Nov 30 19:44:38 2023 -0500
+
+    bisync: full support for comparing checksum, size, modtime - fixes #5679 fixes #5683 fixes #5684 fixes #5675
+    
+    Before this change, bisync could only detect changes based on modtime, and
+    would refuse to run if either path lacked modtime support. This made bisync
+    unavailable for many of rclone's backends. Additionally, bisync did not account
+    for the Fs's precision when comparing modtimes, meaning that they could only be
+    reliably compared within the same side -- not against the opposite side. Size
+    and checksum (even when available) were ignored completely for deltas.
+    
+    After this change, bisync now fully supports comparing based on any combination
+    of size, modtime, and checksum, lifting the prior restriction on backends
+    without modtime support. The comparison logic considers the backend's
+    precision, hash types, and other features as appropriate.
+    
+    The comparison features optionally use a new --compare flag (which takes any
+    combination of size,modtime,checksum) and even supports some combinations not
+    otherwise supported in `sync` (like comparing all three at the same time.) By
+    default (without the --compare flag), bisync inherits the same comparison
+    options as `sync` (that is: size and modtime by default, unless modified with
+    flags such as --checksum or --size-only.) If the --compare flag is set, it will
+    override these defaults.
+    
+    If --compare includes checksum and both remotes support checksums but have no
+    hash types in common with each other, checksums will be considered only for
+    comparisons within the same side (to determine what has changed since the prior
+    sync), but not for comparisons against the opposite side. If one side supports
+    checksums and the other does not, checksums will only be considered on the side
+    that supports them. When comparing with checksum and/or size without modtime,
+    bisync cannot determine whether a file is newer or older -- only whether it is
+    changed or unchanged. (If it is changed on both sides, bisync still does the
+    standard equality-check to avoid declaring a sync conflict unless it absolutely
+    has to.)
+    
+    Also included are some new flags to customize the checksum comparison behavior
+    on backends where hashes are slow or unavailable. --no-slow-hash and
+    --slow-hash-sync-only allow selectively ignoring checksums on backends such as
+    local where they are slow. --download-hash allows computing them by downloading
+    when (and only when) they're otherwise not available. Of course, this option
+    probably won't be practical with large files, but may be a good option for
+    syncing small-but-important files with maximum accuracy (for example, a source
+    code repo on a crypt remote.) An additional advantage over methods like
+    cryptcheck is that the original file is not required for comparison (for
+    example, --download-hash can be used to bisync two different crypt remotes with
+    different passwords.)
+    
+    Additionally, all of the above are now considered during the final --check-sync
+    for much-improved accuracy (before this change, it only compared filenames!)
+    
+    Many other details are explained in the included docs.
+
+commit d8e07bfd8e9c011f73ef2066a546dfc0c1615616
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Dec 4 07:37:05 2023 -0500
+
+    bisync: document beta status more clearly - fixes #6082
+
+commit 199d82969b45c6b97d090ef46020cd9eb081ea00
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Nov 30 19:46:11 2023 -0500
+
+    bisync: normalize session name to non-canonical - fixes #7423
+    
+    Before this change, bisync used the "canonical" Fs name in the filename for its
+    listing files, including any {hexstring} suffix. An unintended consequence of
+    this was that if a user added a backend-specific flag from the command line
+    (thus "overriding" the config), bisync would fail to find the listing files it
+    created during the prior run without this flag, due to the path now having a
+    {hexstring} suffix that wasn't there before (or vice versa, if the flag was
+    present when the session was established, and later removed.) This would
+    sometimes cause bisync to fail with a critical error (if no listing existed
+    with the alternate name), or worse -- it would sometimes cause bisync to use an
+    old, incorrect listing (if old listings with the alternate name DID still
+    exist, from before the user changed their flags.)
+    
+    After this change, the issue is fixed by always normalizing the SessionName to
+    the non-canonical version (no {hexstring} suffix), regardless of the flags. To
+    avoid a breaking change, we first check if a suffixed listing exists. If so, we
+    rename it (and overwrite the non-suffixed version, if any.) If not, we carry on
+    with the non-suffixed version. (We should only find a suffixed version if
+    created prior to this commit.)
+    
+    The result for the user is that the same pair of paths will always use the same
+    .lst filenames, with or without backend-specific flags.
+
+commit bb74a13c0746821e1d240c501d39233821f1ef01
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Dec 6 01:22:00 2023 -0500
+
+    bisync: update version number in docs
+    
+    as these changes did not make it in time for 1.65
+
+commit 57624629d6b43177846fd64b3e252d1ad364bec4
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Nov 17 12:14:38 2023 -0500
+
+    bisync: account for differences in backend features on integration tests - see #5679
+    
+    Before this change, integration tests often could not be run on backends with
+    differing features from the local system that goldenized them. In particular,
+    differences in modtime precision, checksum support, and encoding would cause
+    false positives. After this change, the tests more accurately account for the
+    features of the backend being tested, which allows us to see true positives
+    more clearly, and more meaningfully assess whether a backend is supported.
+
+commit 7c6f0cc455f5136e20ffc3c36400e3eb95b6a361
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Nov 20 11:04:54 2023 -0500
+
+    operations: fix renaming a file on macOS
+    
+    Before this change, a file would sometimes be silently deleted instead of
+    renamed on macOS, due to its unique handling of unicode normalization. Rclone
+    already had a SameObject check in place for case insensitivity before deleting
+    the source (for example if "hello.txt" was renamed to "HELLO.txt"), but had no
+    such check for unicode normalization. After this change, the delete is skipped
+    on macOS if the src and dst filenames normalize to the same NFC string.
+    
+    Example of the previous behavior:
+    
+     ~ % rclone touch /Users/nielash/rename_test/ö
+     ~ % rclone lsl /Users/nielash/rename_test/ö
+            0 2023-11-21 17:28:06.170486000 ö
+     ~ % rclone moveto /Users/nielash/rename_test/ö /Users/nielash/rename_test/ö -vv
+    2023/11/21 17:28:51 DEBUG : rclone: Version "v1.64.0" starting with parameters ["rclone" "moveto" "/Users/nielash/rename_test/ö" "/Users/nielash/rename_test/ö" "-vv"]
+    2023/11/21 17:28:51 DEBUG : Creating backend with remote "/Users/nielash/rename_test/ö"
+    2023/11/21 17:28:51 DEBUG : Using config file from "/Users/nielash/.config/rclone/rclone.conf"
+    2023/11/21 17:28:51 DEBUG : fs cache: adding new entry for parent of "/Users/nielash/rename_test/ö", "/Users/nielash/rename_test"
+    2023/11/21 17:28:51 DEBUG : Creating backend with remote "/Users/nielash/rename_test/"
+    2023/11/21 17:28:51 DEBUG : fs cache: renaming cache item "/Users/nielash/rename_test/" to be canonical "/Users/nielash/rename_test"
+    2023/11/21 17:28:51 DEBUG : ö: Size and modification time the same (differ by 0s, within tolerance 1ns)
+    2023/11/21 17:28:51 DEBUG : ö: Unchanged skipping
+    2023/11/21 17:28:51 INFO  : ö: Deleted
+    2023/11/21 17:28:51 INFO  :
+    Transferred:              0 B / 0 B, -, 0 B/s, ETA -
+    Checks:                 1 / 1, 100%
+    Deleted:                1 (files), 0 (dirs)
+    Elapsed time:         0.0s
+    
+    2023/11/21 17:28:51 DEBUG : 5 go routines active
+     ~ % rclone lsl /Users/nielash/rename_test/
+     ~ %
+
+commit 422b0370870324f6bc1be5a08f9e7b0da355fa1b
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Nov 21 17:43:17 2023 -0500
+
+    bisync: fallback to cryptcheck or --download when can't check hash
+    
+    Bisync checks file equality before renaming sync conflicts by comparing
+    checksums. Before this change, backends without checksum support (notably
+    Crypt) would fall back to --size-only for these checks, which is not a very
+    safe method (differing files can sometimes have the same size, especially if
+    they're small.) After this change, Crypt remotes fallback to using Cryptcheck
+    so that checksums can be compared. As a last resort when neither Check nor
+    Cryptcheck are available, files are compared using --download so that we can be
+    certain the files are identical regardless of checksum support.
+
+commit 7f854acb0569644f6bab69e550ab6d8e3d281763
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Nov 15 15:12:45 2023 -0500
+
+    local: fix cleanRootPath on Windows after go1.21.4 stdlib update
+    
+    Similar to
+    https://github.com/rclone/rclone/commit/acf1e2df84a350b7a86d7672d749dfb1ba090a44,
+    go1.21.4 appears to have broken sync.MoveDir on Windows because
+    filepath.VolumeName() returns `\\?` instead of `\\?\C:` in cleanRootPath. It
+    looks like the Go team is aware of the issue and planning a fix, so this may
+    only be needed temporarily.
+
+commit bbf9b1b3d212731c477f150dba7d452e5e06e488
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Nov 12 10:34:38 2023 -0500
+
+    bisync: support two --backup-dir paths on different remotes
+    
+    Before this change, bisync supported `--backup-dir` only when `Path1` and
+    `Path2` were different paths on the same remote. With this change, bisync
+    introduces new `--backup-dir1` and `--backup-dir2` flags to support separate
+    backup-dirs for `Path1` and `Path2`.
+    
+    `--backup-dir1` and `--backup-dir2` can use different remotes from each other,
+    but `--backup-dir1` must use the same remote as `Path1`, and `--backup-dir2`
+    must use the same remote as `Path2`. Each backup directory must not overlap its
+    respective bisync Path without being excluded by a filter rule.
+    
+    The standard `--backup-dir` will also work, if both paths use the same remote
+    (but note that deleted files from both paths would be mixed together in the
+    same dir). If either `--backup-dir1` and `--backup-dir2` are set, they will
+    override `--backup-dir`.
+
+commit 9cf783677ed0ac6483bf2b3e7f72734f297dd60e
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Aug 24 08:13:02 2023 -0400
+
+    bisync: support files with unknown length, including Google Docs - fixes #5696
+    
+    Before this change, bisync intentionally ignored Google Docs (albeit in a
+    buggy way that caused problems during --resync.) After this change, Google Docs
+    (including Google Sheets, Slides, etc.) are now supported in bisync, subject to
+    the same options, defaults, and limitations as in `rclone sync`. When bisyncing
+    drive with non-drive backends, the drive -> non-drive direction is controlled
+    by `--drive-export-formats` (default `"docx,xlsx,pptx,svg"`) and the non-drive
+    -> drive direction is controlled by `--drive-import-formats` (default none.)
+    
+    For example, with the default export/import formats, a Google Sheet on the
+    drive side will be synced to an `.xlsx` file on the non-drive side. In the
+    reverse direction, `.xlsx` files with filenames that match an existing Google
+    Sheet will be synced to that Google Sheet, while `.xlsx` files that do NOT
+    match an existing Google Sheet will be copied to drive as normal `.xlsx` files
+    (without conversion to Sheets, although the Google Drive web browser UI may
+    still give you the option to open it as one.)
+    
+    If `--drive-import-formats` is set (it's not, by default), then all of the
+    specified formats will be converted to Google Docs, if there is no existing
+    Google Doc with a matching name. Caution: such conversion can be quite lossy,
+    and in most cases it's probably not what you want!
+    
+    To bisync Google Docs as URL shortcut links (in a manner similar to "Drive for
+    Desktop"), use: `--drive-export-formats url` (or alternatives.)
+    
+    Note that these link files cannot be edited on the non-drive side -- you will
+    get errors if you try to sync an edited link file back to drive. They CAN be
+    deleted (it will result in deleting the corresponding Google Doc.) If you
+    create a `.url` file on the non-drive side that does not match an existing
+    Google Doc, bisyncing it will just result in copying the literal `.url` file
+    over to drive (no Google Doc will be created.) So, as a general rule of thumb,
+    think of them as read-only placeholders on the non-drive side, and make all
+    your changes on the drive side.
+    
+    Likewise, even with other export-formats, it is best to only move/rename Google
+    Docs on the drive side. This is because otherwise, bisync will interpret this
+    as a file deleted and another created, and accordingly, it will delete the
+    Google Doc and create a new file at the new path. (Whether or not that new file
+    is a Google Doc depends on `--drive-import-formats`.)
+    
+    Lastly, take note that all Google Docs on the drive side have a size of `-1`
+    and no checksum. Therefore, they cannot be reliably synced with the
+    `--checksum` or `--size-only` flags. (To be exact: they will still get
+    created/deleted, and bisync's delta engine will notice changes and queue them
+    for syncing, but the underlying sync function will consider them identical and
+    skip them.) To work around this, use the default (modtime and size) instead of
+    `--checksum` or `--size-only`.
+    
+    To ignore Google Docs entirely, use `--drive-skip-gdocs`.
+    
+    Nearly all of the Google Docs logic is outsourced to the Drive backend, so
+    future changes should also be supported by bisync.
+
+commit 4d5d6ee61b2f59902916b5c103906389b5487167
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Nov 11 00:34:41 2023 -0500
+
+    bisync: provide more info in critical error msgs
+
+commit 44637dcd7fe1b4328cc9e6d73966f556c8747562
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Nov 10 22:56:28 2023 -0500
+
+    bisync: high-level retries if --resilient
+    
+    Before this change, bisync had no ability to retry in the event of sync errors.
+    After this change, bisync will retry if --resilient is passed, but only in one
+    direction at a time. We can safely retry in one direction because the source is
+    still intact, even if the dest was left in a messy state. If the first
+    direction still fails after our final retry, we abort and do NOT continue in
+    the other direction, to prevent the messy dest from polluting the source. If
+    the first direction succeeds, we do then allow retries in the other direction.
+    
+    The number of retries is controllable by --retries (default 3)
+    
+    bisync: high-level retries if --resilient
+    
+    Before this change, bisync had no ability to retry in the event of sync errors.
+    After this change, bisync will retry if --resilient is passed, but only in one
+    direction at a time. We can safely retry in one direction because the source is
+    still intact, even if the dest was left in a messy state. If the first
+    direction still fails after our final retry, we abort and do NOT continue in
+    the other direction, to prevent the messy dest from polluting the source. If
+    the first direction succeeds, we do then allow retries in the other direction.
+    
+    The number of retries is controllable by --retries (default 3)
+
+commit 98f539de8f91192e68f8252ad1641747950570e1
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Nov 9 05:04:33 2023 -0500
+
+    bisync: refactor normalization code, fix deltas - fixes #7270
+    
+    Refactored the case / unicode normalization logic to be much more efficient,
+     and fix the last outstanding issue from #7270. Before this change, we were
+     doing lots of for loops and re-normalizing strings we had already normalized
+     earlier. Now, we leave the normalizing entirely to March and avoid
+     re-transforming later, which seems to make a large difference in terms of
+     performance.
+
+commit 58fd6d7b947582971001886ee308af0d2ae0ffc0
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Nov 8 00:46:44 2023 -0500
+
+    docs: add bisync to index
+
+commit 9c96c13a35633cb032a04ccea57f1a256b6e86cd
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Nov 6 10:34:47 2023 -0500
+
+    bisync: optimize --resync performance -- partially addresses #5681
+    
+    Before this change, --resync was handled in three steps, and needed to do a lot
+    of unnecessary work to implement its own --ignore-existing logic, which also
+    caused problems with unicode normalization, in addition to being pretty slow.
+    After this change, it is refactored to produce the same result much more
+    efficiently, by reducing the three steps to two and letting ci.IgnoreExisting
+    do the work instead of reinventing the wheel.
+    
+    The behavior and sync order remain unchanged for now -- just faster (but see
+    the ongoing lively discussions about potential future changes in #5681!)
+
+commit f7f465182832fe4448b1b638088bb8e96a8af029
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 8 23:16:23 2023 -0400
+
+    bisync: handle unicode and case normalization consistently - mostly-fixes #7270
+    
+    Before this change, Bisync sometimes normalized NFD to NFC and sometimes
+    did not, causing errors in some scenarios (particularly for users of macOS).
+    It was similarly inconsistent in its handling of case-insensitivity.
+    
+    There were three main places where Bisync should have normalized, but didn't:
+    
+    1. When building the list of files that need to be transferred during --resync
+    2. When building the list of deltas during a non-resync
+    3. When comparing Path1 to Path2 during --check-sync
+    
+    After this change, 1 and 3 are resolved, and bisync supports
+    --no-unicode-normalization and --ignore-case-sync in the same way as sync.
+    2 will be addressed in a future update.
+
+commit 11afc3dde0720ff5f8312bb26e3dde2f8956c410
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 8 22:59:22 2023 -0400
+
+    sync: --fix-case flag to rename case insensitive dest - fixes #4854
+    
+    Before this change, a sync to a case insensitive dest (such as macOS / Windows)
+    would not result in a matching filename if the source and dest had casing
+    differences but were otherwise equal. For example, syncing `hello.txt` to
+    `HELLO.txt` would result in the dest filename remaining `HELLO.txt`.
+    Furthermore, `--local-case-sensitive` did not solve this, as it actually caused
+    `HELLO.txt` to get deleted!
+    
+    After this change, `HELLO.txt` is renamed to `hello.txt` to match the source,
+    only if the `--fix-case` flag is specified. (The old behavior remains the
+    default.)
+
+commit 88e516adee46f439cd0f53ccbbf3b7a86272e538
+Author: nielash <nielronash@gmail.com>
+Date:   Tue Oct 10 07:21:56 2023 -0400
+
+    moveOrCopyFile: avoid panic on --dry-run
+    
+    Before this change, changing the case of a file on a case insensitive remote
+    would fatally panic when `--dry-run` was set, due to `moveOrCopyFile`
+    attempting to access the non-existent `tmpObj` it (would normally have)
+    created. After this change, the panic is avoided by skipping this step during
+    a `--dry-run` (with the usual "skipped as --dry-run is set" log message.)
+
+commit fd955110918527167246681531653a13436e95c4
+Author: nielash <nielronash@gmail.com>
+Date:   Sat Oct 7 06:33:43 2023 -0400
+
+    bisync: generate listings concurrently with march -- fixes #7332
+    
+    Before this change, bisync needed to build a full listing for Path1, then a
+    full listing for Path2, then compare them -- and each of those tasks needed to
+    finish before the next one could start. In addition to being slow and
+    inefficient, it also caused real problems if a file changed between the time
+    bisync checked it on Path1 and the time it checked the corresponding file on
+    Path2.
+    
+    This change solves these problems by listing both paths concurrently, using
+    the same March infrastructure that check and sync use to traverse two
+    directories in lock-step, optimized by Go's robust concurrency support.
+    Listings should now be much faster, and any given path is now checked
+    nearly-instantaneously on both sides, minimizing room for error.
+    
+    Further discussion:
+    https://forum.rclone.org/t/bisync-bugs-and-feature-requests/37636#:~:text=4.%20Listings%20should%20alternate%20between%20paths%20to%20minimize%20errors
+
+commit 0cac5d67abc048a8bfad7487e52a40ae7b35ff87
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Nov 6 06:59:41 2023 -0500
+
+    bisync: introduce terminal colors
+    
+    This introduces a few basic color codings to make the terminal output more
+    readable (and more fun). Rclone's standard --color flag is supported.
+    (AUTO|NEVER|ALWAYS)
+    
+    Only a few lines have colors right now -- more will probably be added in
+    future versions.
+
+commit 6d6dc00abba2bbc7f6e87a141387c36bc0a3f0a4
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Oct 6 16:38:47 2023 -0400
+
+    bisync: rollback listing on error
+    
+    Before this change, bisync had no mechanism for "retrying" a file again next
+    time, in the event of an unexpected and possibly temporary error. After this
+    change, bisync is now essentially able to mark a file as needing to be
+    rechecked next time. Bisync does this by keeping one prior listing on hand at
+    all times. In a low-confidence situation, bisync can revert a given file row
+    back to its state at the end of the last known successful sync, ensuring that
+    any subsequent changes will be re-noticed on the next run.
+    This can potentially be helpful for a dynamically changing file system, where
+    files may be changing quickly while bisync is working with them.
+
+commit 079763f09ade2d6e92a5995c1c02fad42c8e48cd
+Author: nielash <nielronash@gmail.com>
+Date:   Fri Oct 6 16:36:00 2023 -0400
+
+    bisync: isDir check for deltas
+    
+    Before this change, if --create-empty-src-dirs was specified, bisync would
+    include directories in the list of deltas to evaluate by their modtime,
+    relative to the prior sync. This was unnecessary, as rclone does not yet
+    support setting modtime for directories.
+    
+    After this change, we skip directories when comparing modtimes. (In other
+    words, we care only if a directory is created or deleted, not whether it is
+    newer or older.)
+
+commit 978cbf9360bb2f894baa8e6922fc7c856c1125c5
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 1 09:36:19 2023 -0400
+
+    bisync: generate final listing from sync results, not relisting -- fixes #5676
+    
+    Before this change, if there were changes to sync, bisync listed each path
+    twice: once before the sync and once after. The second listing caused quite
+    a lot of problems, in addition to making each run much slower and more
+    expensive. A serious side-effect was that file changes could slip through
+    undetected, if they happened to occur while a sync was running (between the
+    first and second listing snapshots.)
+    
+    After this change, the second listing is eliminated by getting the underlying
+    sync operation to report back a list of what it changed. Not only is this more
+    efficient, but also much more robust to concurrent modifications. It should no
+    longer be necessary to avoid make changes while it's running -- bisync will
+    simply learn about those changes next time and handle them on the next run.
+    Additionally, this also makes --check-sync usable again.
+    
+    For further discussion, see:
+    https://forum.rclone.org/t/bisync-bugs-and-feature-requests/37636#:~:text=5.%20Final%20listings%20should%20be%20created%20from%20initial%20snapshot%20%2B%20deltas%2C%20not%20full%20re%2Dscans%2C%20to%20avoid%20errors%20if%20files%20changed%20during%20sync
+
+commit 3a50f35df9ff8e4fa9a3e0745c9997f28991d086
+Author: nielash <nielronash@gmail.com>
+Date:   Mon Nov 6 02:45:51 2023 -0500
+
+    sync: report list of synced paths to file -- see #7282
+    
+    Allows rclone sync to accept the same output file flags as rclone check,
+    for the purpose of writing results to a file.
+    A new --dest-after option is also supported, which writes a list file using
+    the same ListFormat flags as lsf (including customizable options for hash,
+    modtime, etc.) Conceptually it is similar to rsync's --itemize-changes, but
+    not identical -- it should output an accurate list of what will be on the
+    destination after the sync.
+    
+    Note that it has a few limitations, and certain scenarios
+    are not currently supported:
+    
+    --max-duration / CutoffModeHard
+    --compare-dest / --copy-dest (because equal() is called multiple times for the
+        same file)
+    server-side moves of an entire dir at once (because we never get the individual
+    file objects in the dir)
+    High-level retries, because there would be dupes
+    Possibly some error scenarios that didn't come up on the tests
+    
+    Note also that each file is logged during the sync, as opposed to after, so it
+    is most useful as a predictor of what SHOULD happen to each file
+    (which may or may not match what actually DID.)
+    
+    Only rclone sync is currently supported -- support for copy and move may be
+    added in the future.
+
+commit c0968a0987e15027513ff6fe1728c9e61245a154
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 1 05:02:56 2023 -0400
+
+    operations: add logger to log list of sync results -- fixes #7282
+    
+    Logger instruments the Sync routine with a status report for each file pair,
+    making it possible to output a list of the synced files, along with their
+    attributes and sigil categorization (match/differ/missing/etc.)
+    It is very customizable by passing in a custom LoggerFn, options, and
+    io.Writers to be written to. Possible uses include:
+    - allow sync to write path lists to a file, in the same format as rclone check
+    - allow sync to output a --dest-after file using the same format flags as lsf
+    - receive results as JSON when calling sync from an internal function
+    - predict the post-sync state of the destination
+    
+    For usage examples, see bisync.WriteResults() or sync.SyncLoggerFn()
+
+commit 932f9ec34aa60a0a7b5ad811ed157da2b98c1508
+Author: nielash <nielronash@gmail.com>
+Date:   Wed Nov 8 01:12:22 2023 -0500
+
+    bisync: document support for atomic uploads
+
+commit 0e5f12126f8a6b1ae48a68242e563829fbe8ef00
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 1 04:47:46 2023 -0400
+
+    bisync: merge copies and deletes, support --track-renames and --backup-dir -- fixes #5690 fixes #5685
+    
+    Before this change, bisync handled copies and deletes in separate operations.
+    After this change, they are combined in one sync operation, which is faster
+    and also allows bisync to support --track-renames and --backup-dir.
+    
+    Bisync uses a --files-from filter containing only the paths bisync has
+    determined need to be synced. Just like in sync (but in both directions),
+    if a path is present on the dst but not the src, it's interpreted as a delete
+    rather than a copy.
+
+commit 5c7ba0bfd34cb4aacb972747921ea50c83ac9ec2
+Author: nielash <nielronash@gmail.com>
+Date:   Sun Oct 1 04:12:39 2023 -0400
+
+    bisync: fix tests on macOS
+    
+    normalizes unicode and ignores .DS_Store files to make testing possible
+    on macOS
+
+commit 9933d6c07135926d904ccc3aec10c21e356a9cdc
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Sep 21 12:35:40 2023 -0400
+
+    check: respect --no-unicode-normalization and --ignore-case-sync for --checkfile
+    
+    Before this change, --no-unicode-normalization and --ignore-case-sync
+    were respected for rclone check but not for rclone check --checkfile,
+    causing them to give different results.
+    
+    This change adds support for --checkfile so that the behavior is consistent.
+
+commit 66929416d40f3ef61fe67a3b3adc4e5fb1495cb0
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Dec 7 19:29:55 2023 -0500
+
+    lsf: add --time-format flag
+    
+    Before this change, lsf's time format was hard-coded to "2006-01-02 15:04:05",
+    regardless of the Fs's precision. After this change, a new optional
+    --time-format flag is added to allow customizing the format (the default is
+    unchanged).
+    
+    Examples:
+            rclone lsf remote:path --format pt --time-format 'Jan 2, 2006 at 3:04pm (MST)'
+            rclone lsf remote:path --format pt --time-format '2006-01-02 15:04:05.000000000'
+            rclone lsf remote:path --format pt --time-format '2006-01-02T15:04:05.999999999Z07:00'
+            rclone lsf remote:path --format pt --time-format RFC3339
+            rclone lsf remote:path --format pt --time-format DateOnly
+            rclone lsf remote:path --format pt --time-format max
+    
+    --time-format max will automatically truncate '2006-01-02 15:04:05.000000000'
+    to the maximum precision supported by the remote.
+
+commit b06935a12e65fb439bcb9ded53543d364c1ba32a
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Wed Jan 17 22:51:17 2024 +0000
+
+    build(deps): bump actions/cache from 3 to 4
+    
+    Bumps [actions/cache](https://github.com/actions/cache) from 3 to 4.
+    - [Release notes](https://github.com/actions/cache/releases)
+    - [Changelog](https://github.com/actions/cache/blob/main/RELEASES.md)
+    - [Commits](https://github.com/actions/cache/compare/v3...v4)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: actions/cache
+      dependency-type: direct:production
+      update-type: version-update:semver-major
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+
+commit 806f6ab1ebe3cee4653d10626cf82a66c672da9c
+Author: Tera <24725862+teraa@users.noreply.github.com>
+Date:   Thu Jan 18 10:48:34 2024 +0100
+
+    add missing backtick
+
+commit c482624a6ca5f2fff78bd97767bc7ca7427a50e9
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 17 10:36:17 2024 +0000
+
+    config: add config/paths to the rc as rclone config paths equivalent
+    
+    Fixes #7568
+
+commit 17fea90ac9a5bcebcb51f683e02dfd946ea46869
+Author: kapitainsky <dariuszb@me.com>
+Date:   Wed Jan 17 15:55:02 2024 +0000
+
+    docs: add rclone OS requirements
+    
+    Adds rclone OS requirements list and latest rclone versions known to be working with specific historical OS versions.
+    
+    Discussed on the forum:
+    https://forum.rclone.org/t/rclone-1-65-1-runtime-exception-error-crash-immediately-after-running-the-command/44051
+    
+    Fixes: #7571
+
+commit 78176d39fd591c5127eba9d25d2205e8a006339b
+Author: Harshit Budhraja <52413945+harshit-budhraja@users.noreply.github.com>
+Date:   Wed Jan 17 16:53:06 2024 +0530
+
+    imagekit: updated overview - supported operations
+
+commit ae3c73f610bf7356427613cf63a005e6556f1b55
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Jan 16 17:30:24 2024 +0000
+
+    stats: fix race between ResetCounters and stopAverageLoop called from time.AfterFunc
+    
+    Before this change StatsInfo.ResetCounters() and stopAverageLoop()
+    (when called from time.AfterFunc) could race on StatsInfo.average.
+    This was because the deferred stopAverageLoop accessed
+    StatsInfo.average without locking.
+    
+    For some reason this only ever happened on macOS. This caused the CI
+    to fail on macOS thus causing the macOS builds not to appear.
+    
+    This commit fixes the problem with a bit of extra locking.
+    
+    It also renames all StatsInfo methods that should be called without
+    the lock to start with an initial underscore as this is the convention
+    we use elsewhere.
+    
+    Fixes #7567
+
+commit d20f647487a608cc54ad3b5c702dd05539acf8ac
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 17 10:23:34 2024 +0000
+
+    Add Harshit Budhraja to contributors
+
+commit 6521394865cc73efed2f19a5b97ac4a9e7e717c0
+Author: Harshit Budhraja <52413945+harshit-budhraja@users.noreply.github.com>
+Date:   Tue Jan 16 19:47:23 2024 +0530
+
+    imagekit: Updated docs and web content
+
+commit 42cac4cf535251c11f12e4bca6c00c7b2df1c0dd
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Jan 15 15:34:37 2024 +0000
+
+    build: use API when fetching golangci-lint as it is more reliable
+    
+    This was turned off previously because we used it in the CI and it
+    rate limited.
+
+commit 223d8c5fe38751664d360c7ee4a50690936bca10
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 17:14:16 2024 +0000
+
+    serve dlna: now only supported on go1.21 or later
+    
+    This is due to use of go1.21 only constructs in github.com/anacrolix/log
+
+commit dd0e5b9a7f5c65f0776759ac1bfd9e3e93f5517e
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 16:59:33 2024 +0000
+
+    operations: use built in io.OffsetWriter for go1.20
+
+commit da244a370982d2edb79e965e9c98a07feac0b102
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 16:58:36 2024 +0000
+
+    ssh: shorten wait delay for external ssh binaries now that we are using go1.20
+    
+    Now we are guaranteed to have go1.20 or later we can use the WaitDelay
+    flag when running external ssh binaries.
+
+commit 938b43c26cc23117c676d80ee28b026671912209
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 16:56:11 2024 +0000
+
+    build: remove random.Seed since random generator is seeded automatically in go1.20
+    
+    Now that the minimum version is go1.20 we can stop seeding the random
+    number generator.
+
+commit 13fb2fb2ec7581ad7c44454249a5e22573bc18f1
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 17:00:04 2024 +0000
+
+    build: update to go1.22rc1 and make go1.20 the minimum required version
+
+commit 43cc2435c3474e2f9b320ed4148e215bccf8ac53
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 16:38:26 2024 +0000
+
+    build: update indirect dependencies where possible
+
+commit 1b1e43074f0349cf5d77011f4a62af3433aed5fc
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 16:32:42 2024 +0000
+
+    build: update direct dependencies and fix serve nfs
+    
+    This updates the direct dependencies.
+    
+    The latest github.com/willscott/go-nfs has changed the interface
+    slightly so this implements a dummy InvalidateHandle method in order
+    to satisfy it.
+
+commit cacfc100defdf51581c010ed682c5b1d9a79b1d3
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 11 11:11:45 2024 +0000
+
+    docs: add warp.dev sponsorship to github home page
+
+commit f8c5695aed68f3163f9c91c61dcec290e4596f19
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 11 10:57:54 2024 +0000
+
+    docs: add warp.dev as a sponsor
+
+commit a5972fe0d1cd737e1b500db03932b0e2ce389272
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 11 12:34:40 2024 +0000
+
+    docs: update website footer
+
+commit 184459ba8fcfd7c790738d8b04cd9329cc87c226
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sun Jan 14 17:46:25 2024 +0000
+
+    vfs: fix stale data when using --vfs-cache-mode full
+    
+    Before this change the VFS cache could get into a state where when an
+    object was updated remotely, the fingerprint of the item was correct
+    for the new object but the data in the VFS cache was for the old
+    object.
+    
+    This fixes the problem by updating the fingerprint of the item at the
+    point we remove the stale data. The empty cache item now represents
+    the new item even though it has no data in.
+    
+    This stops the fallback code for an empty fingerprint running (used
+    when we are writing items to the cache instead of reading them) which
+    was causing the problem.
+    
+    Fixes #6053
+    See: https://forum.rclone.org/t/cached-webdav-mount-fingerprints-get-nuked-on-ls/43974/
+
+commit 519fe98e6e7798c3ae14ffd60af6ce2316b126a5
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Jan 12 09:45:59 2024 +0000
+
+    azureblob: implement --azureblob-delete-snapshots
+    
+    This flag controls what happens when we try to delete a blob with a
+    snapshot. The UI follows the azcopy tool.
+    
+    See: https://forum.rclone.org/t/how-to-delete-undeleted-blobs-on-azure/43911/
+
+commit 3df6518006556833191421ee9e90a8788113d226
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Jan 13 14:27:44 2024 +0000
+
+    Add Nikhil Ahuja to contributors
+
+commit 1045f5412804c73fb729e7d1ab0a99713aef75f9
+Author: Nikhil Ahuja <nikhilahuja@live.com>
+Date:   Tue Dec 19 20:56:32 2023 +0530
+
+    oracleobjectstorage: Support "backend restore" command - fixes #7371
+
+commit 0563cc63144fe71d788eb5494e107c44f152cf37
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Mon Jan 8 16:54:10 2024 +0000
+
+    build(deps): bump github.com/cloudflare/circl from 1.3.6 to 1.3.7
+    
+    Bumps [github.com/cloudflare/circl](https://github.com/cloudflare/circl) from 1.3.6 to 1.3.7.
+    - [Release notes](https://github.com/cloudflare/circl/releases)
+    - [Commits](https://github.com/cloudflare/circl/compare/v1.3.6...v1.3.7)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: github.com/cloudflare/circl
+      dependency-type: indirect
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+
+commit e20f2eee59cebc1485e35c85e7fb65e9e0df2fbd
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Jan 8 11:53:18 2024 +0000
+
+    Changelog updates from Version v1.65.1
+
+commit 41b8935a6cc09a2db240039810e0e0b9a59c2252
+Author: Vincent Murphy <vdm@vdm.ie>
+Date:   Mon Jan 8 10:56:36 2024 +0000
+
+    docs: Fix broken test_proxy.py link again
+    
+    The previous fix fixed the auto generated output - this fixes the source.
+
+commit fbdf71ab64567c4715640ef761254a44fed2d9a9
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 4 11:28:47 2024 +0000
+
+    operations: fix files moved by rclone move not being counted as transfers
+    
+    Before this change we were only counting moves as checks. This means
+    that when using `rclone move` the `Transfers` stat did not count up
+    like it should do.
+    
+    This changes introduces a new primitive operations.MoveTransfers which
+    counts moves as Transfers for use where that is appropriate, such as
+    rclone move/moveto. Otherwise moves are counted as checks and their
+    bytes are not accounted.
+    
+    See: #7183
+    See: https://forum.rclone.org/t/stats-one-line-date-broken-in-1-64-0-and-later/43263/
+
+commit d392f9fcd8e1403916a741f58278e59281241ab0
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Thu Jan 4 11:39:51 2024 +0000
+
+    accounting: fix stats to show server side transfers
+    
+    Before this fix we were not counting transferred files nor transferred
+    bytes for server side moves/copies.
+    
+    If the server side move/copy has been marked as a transfer and not a
+    checker then this accounts transferred files and transferred bytes.
+    
+    The transferred bytes are not accounted to the network though so this
+    should not affect the network stats.
+
+commit dedad9f071d81a2b6bf980d5f48d7997cae160af
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Jan 5 12:43:19 2024 +0000
+
+    onedrive: fix "unauthenticated: Unauthenticated" errors when uploading
+    
+    Before this change, sometimes when uploading files the onedrive
+    servers return 401 Unauthorized errors with the text "unauthenticated:
+    Unauthenticated".
+    
+    This is because we are sending the Authorization header with the
+    request and it says in the docs that we shouldn't.
+    
+    https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0#remarks
+    
+    > If you include the Authorization header when issuing the PUT call,
+    > it may result in an HTTP 401 Unauthorized response. Only send the
+    > Authorization header and bearer token when issuing the POST during
+    > the first step. Don't include it when you issue the PUT call.
+    
+    This patch fixes the problem by doing the PUT request with an
+    unauthenticated client.
+    
+    Fixes #7405
+    See: https://forum.rclone.org/t/onedrive-unauthenticated-when-trying-to-copy-sync-but-can-use-lsd/41149/
+    See: https://forum.rclone.org/t/onedrive-unauthenticated-issue/43792/
+
+commit 1f6271fa158db44728aa71a6b63cf0a1b66f01e2
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 1 10:30:44 2023 +0000
+
+    s3: copy parts in parallel when doing chunked server side copy
+    
+    Before this change rclone copied each chunk serially.
+    
+    After this change it does --s3-upload-concurrency at once.
+    
+    See: https://forum.rclone.org/t/transfer-big-files-50gb-from-s3-bucket-to-another-s3-bucket-doesnt-starts/43209
+
+commit c16c22d6e110db889e2d677a9d9b070ce3ea7584
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Dec 16 11:34:38 2023 +0000
+
+    s3: fix crash if no UploadId in multipart upload
+    
+    Before this change if the S3 API returned a multipart upload with no
+    UploadId then rclone would crash.
+    
+    This detects the problem and attempts to retry the multipart upload
+    creation.
+    
+    See: https://forum.rclone.org/t/panic-runtime-error-invalid-memory-address-or-nil-pointer-dereference/43425
+
+commit 486a10bec5879d8f7234aa6166517c50a955ca03
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Dec 5 11:11:29 2023 +0000
+
+    serve s3: fix listing oddities
+    
+    Before this change, listing a subdirectory gave errors like this:
+    
+        Entry doesn't belong in directory "" (contains subdir) - ignoring
+    
+    It also did full recursive listings when it didn't need to.
+    
+    This was caused by the code using the underlying Fs to do recursive
+    listings on bucket based backends.
+    
+    Using both the VFS and the underlying Fs is a mistake so this patch
+    removes the code which uses the underlying Fs and just uses the VFS.
+    
+    Fixes #7500
+
+commit 5fa13e3e31d9945340ea5d8c08c69707aa053747
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 3 11:00:59 2024 +0000
+
+    protondrive: fix CVE-2023-45286 / GHSA-xwh9-gc39-5298
+    
+    A race condition in go-resty can result in HTTP request body
+    disclosure across requests.
+    
+    See: https://pkg.go.dev/vuln/GO-2023-2328
+    Fixes: #7491
+
+commit 0e746f25a319269c39e2f5b55578b7a4bf38e9aa
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 3 11:49:46 2024 +0000
+
+    amazonclouddrive: remove Amazon Drive backend code and docs #7539
+    
+    The Amazon Drive backend is closed from 2023-12-31.
+    
+    See: https://www.amazon.com/b?ie=UTF8&node=23943055011
+
+commit 578b9df6eae50dd75283ba3190408542a0fb2f53
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 3 17:26:13 2024 +0000
+
+    build: fix docker build on arm/v6
+    
+    Unexpectedly the team which runs the Go docker images have removed the
+    arm/v6 image which means that the rclone docker images no longer
+    build.
+    
+    One of the recommended fixes is what we've done here - switch to the
+    alpine builder. This has the advantage that it actually builds arm/v6
+    architecture unlike the previous builder which build arm/v5.
+    
+    See: https://github.com/docker-library/golang/issues/502
+
+commit 208e49ce4bd230e342653ec7344e61a6668fb5ce
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 1 16:31:51 2023 +0000
+
+    fs: update use of math/rand to modern practice
+
+commit 7aa066cff8024a0a62ab96018216e2e3f3a13696
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Jan 3 15:42:11 2024 +0000
+
+    Add Paul Stern to contributors
+
+commit 64df4cf2db54500db2b02c7b5272b57d0c634ec1
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Wed Jan 3 15:47:34 2024 +0000
+
+    build(deps): bump golang.org/x/crypto to fix ssh terrapin CVE-2023-48795
+    
+    Fixes SSH terrapin attack: see https://terrapin-attack.com.
+    
+    Bumps [golang.org/x/crypto](https://github.com/golang/crypto) from 0.14.0 to 0.17.0.
+    - [Commits](https://github.com/golang/crypto/compare/v0.14.0...v0.17.0)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: golang.org/x/crypto
+      dependency-type: direct:production
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+    Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+
+commit 451d7badf7ca4cd296029bff82119f4d2755ee94
+Author: rkonfj <rkonfj@gmail.com>
+Date:   Wed Jan 3 20:25:42 2024 +0800
+
+    oauthutil: avoid panic when `*token` and `*ts.token` are the same
+    
+    the field `raw` of `oauth2.Token` may be an uncomparable type(often map[string]interface{}), causing `*token != *ts.token` expression to panic(comparing uncomparable type ...).
+    
+    the semantics of comparing whether two tokens are the same can be achieved by comparing accessToken, refreshToken and expire to avoid panic.
+
+commit d977fa25fa0e0eaafeeb0bf1126dd312db51ede8
+Author: WeidiDeng <weidi_deng@icloud.com>
+Date:   Wed Jan 3 20:21:08 2024 +0800
+
+    ftp: fix multi-thread copy
+    
+    Before this change multi-thread copies using the FTP backend used to error with
+    
+        551 Error reading file
+    
+    This was caused by a spurious error being reported which this code silences.
+    
+    Fixes #7532
+    See #3942
+
+commit bb679a9def96019f05c2b9ca473b27c2de2190e2
+Author: Paul Stern <paulstern45@gmail.com>
+Date:   Sat Dec 2 19:27:55 2023 +0300
+
+    backend: add description field for all backends
+    
+    Fixes #4391
+
+commit a3d19942bd22d4c777420c2c3b2607949bd9c584
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Dec 27 16:19:31 2023 +0000
+
+    googlephotos: fix nil pointer exception when batch failed
+    
+    This was a simple error check that was missing. Interestingly the
+    errcheck linter did not spot this.
+    
+    See: https://forum.rclone.org/t/invalid-memory-address-or-nil-pointer-dereference-error-when-copy-to-google-photos/43634/
+
+commit 394195cfdf9b2b407a47b03f6d768ad845891114
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sun Dec 31 18:07:11 2023 +0000
+
+    Add rarspace01 to contributors
+
+commit 3ca766b2f11a7e84322d04fbe65cc8334aa30ee5
+Author: nielash <nielronash@gmail.com>
+Date:   Thu Dec 21 14:06:06 2023 -0500
+
+    hasher: fix invalid memory address error when MaxAge == 0
+    
+    When f.opt.MaxAge == 0, f.db is never set, however several methods later assume
+    it is set and attempt to access it, causing an invalid memory address error.
+    This change fixes the issue in a few spots (there may still be others I haven't
+    yet encountered.)
+
+commit 3bf8c877c3394a289d03bdd08a4d09c06e69e22b
+Author: albertony <12441419+albertony@users.noreply.github.com>
+Date:   Mon Jan 1 21:36:50 2024 +0100
+
+    docs/librclone: the newer and recommended ucrt64 subsystem of msys2 can now be used for building on windows
+
+commit fba2d4c4a7c4ae4059c5d0a21f90df3b524088cb
+Author: rarspace01 <rarspace01@users.noreply.github.com>
+Date:   Sat Dec 30 18:10:27 2023 +0100
+
+    docs: fix broken link in serve webdav
+
+commit 8503282a5adffc992e1834eed2cd8aeca57c01dd
+Author: Oksana <142890647+oks-maytech@users.noreply.github.com>
+Date:   Mon Dec 18 16:15:13 2023 +0200
+
+    azure-files: fix storage base url
+    
+    Documented in https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview
+
+commit 743ea6ac263895fb0091df140bbb6c4e2196e97f
+Author: Manoj Ghosh <manoj.ghosh@oracle.com>
+Date:   Fri Dec 15 02:13:35 2023 -0800
+
+    oracle object storage: fix object storage endpoint for custom endpoints
+
+commit c69eb84573c85206ab028eda2987180e049ef2e4
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 8 14:00:22 2023 +0000
+
+    chunker,compress,crypt,hasher,union: fix rclone move a file over itself deleting the file
+    
+    This fixes the Root() returned by the backend when it has returned
+    fs.ErrorIsFile.
+    
+    Before this change it returned a root which included the file path.
+    
+    Because Root() was wrong this caused the detection of the file being
+    moved over itself check to fail.
+    
+    This adds an integration test to check it for all backends.
+    
+    See: https://forum.rclone.org/t/rclone-move-chunker-dir-file-chunker-dir-deletes-all-file-chunks/43333/
+
+commit f98e672f377f704eec9a1e1e527bd4aa9e713f54
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Dec 9 12:06:32 2023 +0000
+
+    selfupdate: fix crash in tests if beta not found
+
+commit 242fe96b1857a43f475933214870cd6722c64c1a
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sun Dec 10 22:29:42 2023 +0000
+
+    Add keongalvin to contributors
+
+commit 3f159bac16301e69d32ec3a64474c0960af9f862
+Author: rkonfj <rkonfj@gmail.com>
+Date:   Fri Dec 8 12:33:51 2023 +0800
+
+    backend: fs implements the `Shutdowner` interface
+    
+    Since `tokenRenewer` adds a Shutdown method, we should call it to
+    clean up resources.
+    
+    changes backends:
+    onedrive,box,pcloud,amazonclouddrive,hidrive,jottacloud,sharefile
+    ,premiumizeme
+    
+    Signed-off-by: rkonfj <rkonfj@gmail.com>
+
+commit 6c58e9976c41d3e641c0aa59c585a1bd523525a6
+Author: rkonfj <rkonfj@gmail.com>
+Date:   Thu Nov 30 14:16:22 2023 +0800
+
+    oauthutil: add Shutdown method
+    
+    Before this change, calling the `oauthutil.NewRenew` func may
+    cause goroutine leaks.
+    
+    This change adds a `Shutdown` method to allow the caller to exit
+    the goroutine to avoid leaks.
+    
+    Signed-off-by: rkonfj <rkonfj@gmail.com>
+
+commit 110d07548fbe18937933239d823da904826205b3
+Author: keongalvin <keongalvin@gmail.com>
+Date:   Fri Dec 8 01:00:13 2023 +0800
+
+    docs: fix broken link
+
+commit f45cee831ff2395db48598eaf51953e3a50117bd
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 8 11:47:20 2023 +0000
+
+    dropbox: fix used space on dropbox team accounts
+    
+    Before this change we were not using the used space from the team
+    stats.
+    
+    This patch uses that as the used space if available as it seems to
+    include the user stats in it.
+    
+    See: https://forum.rclone.org/t/rclone-about-with-dropbox-reporte-size-incorrectly/43269/
+
+commit ef0f3020e43b52b4b2f0ac553bec8761962eaca8
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Dec 6 11:00:04 2023 +0000
+
+    vfs: note that --vfs-refresh runs in the background #6830
+
+commit 113b2b648cf0f82ab44650eb0215573f3c31577c
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 8 14:26:30 2023 +0000
+
+    Add emyarod to contributors
+
+commit 57ab4d279e11cd060e65d696ce4fb45006fb9224
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 8 14:26:30 2023 +0000
+
+    Add Anthony Metzidis to contributors
+
+commit 8e21c77ead79e9aca66bc3f27c27f20a5a975f63
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 8 14:26:30 2023 +0000
+
+    Add Eli Orzitzer to contributors
+
+commit 4751980659238afe179fdf012d0ea165f93ffa3d
+Author: emyarod <afw5059@gmail.com>
+Date:   Thu Dec 7 15:26:26 2023 -0600
+
+    docs: update contributor email
+
+commit 9fe343b725965af79cae87d6148ad3a28a115c43
+Author: Anthony Metzidis <anthony.metzidis@gmail.com>
+Date:   Sat Dec 2 16:12:54 2023 -0800
+
+    s3: S3 IPv6 support with option "use_dual_stack" (bool)
+    
+    dualstack_endpoint=true enables IPv6 DNS lookup for S3 endpoints
+    in s3.go, add Options.DualstackEndpoint to support IPv6 on S3
+
+commit 2f5685b40562cf764da673543245ddb13c049a4a
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Wed Dec 6 22:48:34 2023 +0000
+
+    build(deps): bump actions/setup-go from 4 to 5
+    
+    Bumps [actions/setup-go](https://github.com/actions/setup-go) from 4 to 5.
+    - [Release notes](https://github.com/actions/setup-go/releases)
+    - [Commits](https://github.com/actions/setup-go/compare/v4...v5)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: actions/setup-go
+      dependency-type: direct:production
+      update-type: version-update:semver-major
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+
+commit c3117d9efb469b56be43f6ddffba023c6273458b
+Author: Eli Orzitzer <e_orz@yahoo.com>
+Date:   Thu Dec 7 15:38:34 2023 +0200
+
+    Doc change: Add the CreateBucket permission requirement for AWS S3
+
+commit 1ebbc74f1d62457aea660b9e4378cc085c0dd25e
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Nov 27 10:34:59 2023 +0000
+
+    nfsmount: compile for all unix oses, add --sudo and fix error/option handling
+    
+    - make compile on all unix OSes - this will make the docs appear on linux and rclone.org!
+    - add --sudo flag for using with mount
+    - improve error reporting
+    - fix option handling
+
+commit aee787d33eb91f9d8173e9a124479068673f2bc5
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Mon Nov 27 10:34:21 2023 +0000
+
+    serve nfs: Mark as experimental
+
+commit 298c13e719929946f4abff0081e73bf4f3c07d32
+Author: Anagh Kumar Baranwal <6824881+darthShadow@users.noreply.github.com>
+Date:   Wed Nov 29 14:55:30 2023 +0530
+
+    systemd: Fix detection and switch to the coreos package everywhere
+    rather than having 2 separate libraries
+    
+    Signed-off-by: Anagh Kumar Baranwal <6824881+darthShadow@users.noreply.github.com>
+
+commit f0c774156e5f4d4f51492756c7b1ebf2bc8b98d0
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Nov 28 18:49:38 2023 +0000
+
+    onedrive: fix error listing: unknown object type <nil>
+    
+    This error was introduced in this commit when refactoring the list
+    routine.
+    
+    b8591b230dbabc24 onedrive: implement ListR method which gives --fast-list support
+    
+    The error was caused by OneNote files not being skipped properly.
+
+commit 08c460dd1aebc1819a1fee76d6efca6c483b8ab2
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sat Dec 2 10:49:02 2023 +0000
+
+    Add ben-ba to contributors
+
+commit e3d0bff9cad984de27ce4c90d56a5c5ab52bbd4d
+Author: ben-ba <benjamin.brauner@gmx.de>
+Date:   Fri Dec 1 20:45:48 2023 +0100
+
+    docs: fix typo in docs.md
+    
+    - OpenChunkedWriter
+    + OpenChunkWriter
+
+commit caf5dd9d5e4fda9fbb752760d8dcc0127d6a7ed6
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Nov 29 15:11:11 2023 +0000
+
+    mount: notice daemon dying much quicker
+    
+    Before this change we waited until until the timeout to check the
+    daemon was alive.
+    
+    Now we check it every 100ms like we do the mount status.
+    
+    This also fixes compiling on all platforms which was broken by the
+    previous change
+    
+    9bfbf2a4a mount: fix macOS not noticing errors with --daemon
+    
+    See: https://forum.rclone.org/t/rclone-mount-daemon-exits-successfully-even-when-mount-fails/43146
+
+commit 97d7945cef253616ef0048b248f11cce096bc16b
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Fri Dec 1 09:35:54 2023 +0000
+
+    Add halms to contributors
+
+commit 9061e8185054a713f0c218b0e33e64993f19a514
+Author: Manoj Ghosh <manoj.ghosh@oracle.com>
+Date:   Tue Nov 28 00:14:43 2023 -0800
+
+    multipart copy create bucket if it doesn't exist.
+
+commit 58339845f43ec5f5aa97abb3006a65b91b33b7c7
+Author: halms <7513146+halms@users.noreply.github.com>
+Date:   Wed Nov 29 02:17:41 2023 +0100
+
+    smb: fix shares not listed by updating go-smb2
+    
+    Before this change the IP address of the server was used in the SMB
+    connect request (see CloudSoda/go-smb2#18).
+    The updated library now can pass the hostname instead.
+    
+    The update requires a small change in the dial method call.
+    
+    Fixes rclone#6672
+
+commit 4d4f3de5a5f8f76567f8b299e368de8378c64eb0
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Wed Nov 8 15:29:23 2023 +0000
+
+    s3: add --s3-version-deleted to show delete markers in listings when using versions.
+    
+    See: https://forum.rclone.org/t/s3-object-deletion-times/42781
+
+commit 9bfbf2a4ae58d606d5d9badf68588eef7e718ba3
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Nov 28 19:42:00 2023 +0000
+
+    mount: fix macOS not noticing errors with --daemon
+    
+    See: https://forum.rclone.org/t/rclone-mount-daemon-exits-successfully-even-when-mount-fails/43146
+
+commit 96f8b7c827261200dad7d7d786f6778cb87e0992
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Tue Nov 28 19:08:49 2023 +0000
+
+    install.sh: fix harmless error message on install
+    
+    This was caused by trying to write to a non existent file, and
+    changing the order of the cleanup fixed it.
+    
+    https://forum.rclone.org/t/rclone-v1-65-0-release/43100/18
+
+commit 85f142a206f83d1d3b03e271ada6509ef6b8c39e
+Author: Nick Craig-Wood <nick@craig-wood.com>
+Date:   Sun Nov 26 17:14:38 2023 +0000
+
+    Start v1.66.0-DEV development

@@ -1,0 +1,18 @@
+
+plugins { id 'java' }
+
+dependencyLocking {
+    lockAllConfigurations()
+}
+
+repositories { mavenCentral() }
+dependencies {
+    // 0. VULNERABILITY: Old Guava
+    implementation 'com.google.guava:guava:19.0'
+
+    // 1. The Core Retrofit Library
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+
+    // 2. The Converter (to automatically parse JSON into Objects)
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+}

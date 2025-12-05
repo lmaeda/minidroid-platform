@@ -1,0 +1,10 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+com.google.code.gson:gson:2.8.5=compileClasspath
+com.google.guava:guava:19.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.squareup.okhttp3:okhttp:3.14.9=compileClasspath
+com.squareup.okio:okio:1.17.2=compileClasspath
+com.squareup.retrofit2:converter-gson:2.9.0=compileClasspath
+com.squareup.retrofit2:retrofit:2.9.0=compileClasspath
+empty=annotationProcessor,testAnnotationProcessor

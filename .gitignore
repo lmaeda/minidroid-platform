@@ -1,12 +1,54 @@
-# out directory
-out/
+#  Android Studio Navigation editor temp files
+.navigation/
 
-# json files
-*.json
+# macOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# C/C++ OSS source codes files
+external/lib/src/
+
+# binary files
+external/bin/
+
+# build files
+out/
+build/
+target/
+__pycache__/
+.venv/
 
 # Gradle files
 .gradle/
 build/
+# Java
+*.class
+*.jar
+*.ser
+*.tmp
+*.class.lock
+*.jar.lock  
+*.ser.lock
+*.tmp.lock
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+#Rust
+*.rlib
+*.rmeta
+*.d
+*.dylib
+
+# General / Implied (C/C++ sources '.c', '.cpp', '.cc')
+*.o
+*.obj
+*.exe
+*.a
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -39,24 +81,5 @@ google-services.json
 # Android Profiling
 *.hprof
 
-# --- Additional ignore rules added by Gemini CLI ---
-
-# Python venv
-.venv/
-
-# Java packages (Maven build artifacts)
-target/
-packages/apps/**/target/
-*.jar
-*.class
-
-# Go packages (build artifacts)
-**/pkg/
-**/bin/
-
-# Rust packages (build artifacts)
-**/target/
-
-# C/C++ packages (build artifacts)
-**/bin/
-**/lib/
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

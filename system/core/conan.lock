@@ -1,0 +1,9 @@
+{
+    "version": "0.5",
+    "requires": [
+        "nlohmann_json/3.9.1#795ccc84ba26860aa7d0bd0e9b4aafb0%1700513006.534"
+    ],
+    "build_requires": [],
+    "python_requires": [],
+    "config_requires": []
+}

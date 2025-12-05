@@ -1,13 +1,11 @@
 from conan import ConanFile
 
-class NativeServiceConan(ConanFile):
+class NativeService(ConanFile):
     name = "native_service"
-    version = "1.0"
+    version = "0.1"
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeDeps", "CMakeToolchain"
 
     def requirements(self):
-        self.requires("fmt/10.2.1")
-
-    def layout(self):
-        self.folders.build = "build"
+        # Dependencies can be added here
+        pass

@@ -1,13 +1,14 @@
 # MiniDroid プラットフォーム - セキュリティスキャンデモウォークスルー
 
-このプロジェクトは、**Snyk**、**Syft**、**OSV-Scanner** のようなセキュリティスキャンツールをテストするために、簡略化された Android/組み込みビルド構造を模倣しています。
+このプロジェクトは、**Snyk**、**Syft**、**Scalibr**、**OSV-Scanner** のようなセキュリティスキャンツールをテストするために、簡略化された Android/組み込みビルド構造を模倣しています。
 
 ## ディレクトリ構造
-- `system/core`: ネイティブ C++ サービス。
-- `packages/apps`: Java/Kotlin アプリケーション。
+- `system/core`: ネイティブ C++ サービス（Conan で管理）。
+- `packages/apps`: Java/Kotlin アプリケーション（Maven/Gradle）。
 - `vendor/components`: Go/Rust マイクロサービス。
 - `system/tools`: Python システムユーティリティ。
-- `out/`: シミュレートされた「ビルド成果物」（Syft/OSV のターゲット）。
+- `external/`: Snyk Unmanaged スキャン用のサードパーティ製 C/C++ ソースとバイナリ。
+- `out/`: シミュレートされた「ビルド成果物」（SBOMツールのターゲット）。
 
 ## 前提条件
 
@@ -15,121 +16,111 @@
 
 1.  **Snyk CLI**: `npm install -g snyk`（そして `snyk auth` を実行）
 2.  **Syft**: `curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin`
-3.  **OSV-Scanner**: `go install github.com/google/osv-scanner/cmd/osv-scanner@latest`（またはバイナリダウンロード経由）
+3.  **Scalibr** (Optional): Google製のSBOM生成ツール（バイナリフィンガープリント用）。
+4.  **Conan**: `pip install conan` (C/C++ パッケージ管理用)。
+5.  **CycloneDX CLI**: SBOM統合用。
 
 ---
 
-## フェーズ1：ビルドシミュレーション
+## フェーズ1：ビルドシミュレーション（自動化されたパイプライン）
 
-実際の Android 環境では、`source build/envsetup.sh` と `make` がシステムイメージを作成します。ここでは、その簡略版を模倣します。このリポジトリには、Linux/macOS用の `build_system.sh` と Windows用の `build_system.ps1` の2つのビルドスクリプトが含まれています。これらのスクリリプトは、Java、C/C++、Python、Go、およびRustで書かれたさまざまなコンポーネントをコンパイルし、ビルド成果物を `out/` ディレクトリに配置します。
+実際の Android 環境では `make` がシステムイメージを作成しますが、このデモでは `build.sh` がビルドプロセス全体とセキュリティパイプラインを自動化します。
 
-お使いのオペレーティングシステムに適したビルドスクリプトを実行して、`out/` にファイルシステム成果物を生成します。
-
-**Linux/macOS (Bash):**
+**実行コマンド (Linux/macOS):**
 ```bash
-./build_system.sh
+./build.sh
 ```
 
-**Windows (PowerShell):**
-```powershell
-./build_system.ps1
-```
-*出力:* Java、C++、Python、Go、および Rust のコンパイル、および `out/target/product/generic` への成果物のインストールを示す、より詳細なログが表示されるはずです。これは、実際のビルド出力ディレクトリをシミュレートしています。
+**`build.sh` が実行する主要なステップ:**
 
-***重要:*** ビルドスクリプトは、`pom.xml`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを `out/` ディレクトリに意図的にコピーします。これにより、`Syft` のようなSBOMツールが、最終的なビルド成果物に含まれるすべてのソフトウェアコンポーネントを正確に検出できるようになります。
+1.  **環境の初期化 (`init_workspace`)**:
+    *   `out/target/product/generic` に Android 風のディレクトリ構造を作成します。
+
+2.  **サードパーティ依存関係の処理**:
+    *   **FFmpeg / Toybox (`process_ffmpeg`, `process_toybox`)**: ソースコードをダウンロードし、`external/lib/src` に展開します。これは後のフェーズで **Snyk Unmanaged** が C/C++ の脆弱性をスキャンするために使用されます。
+    *   **Rclone (`process_rclone`)**: プリコンパイルされたバイナリをダウンロードし、`out/system/bin` に配置します。これは **Scalibr** によるバイナリスキャンの対象となります。
+
+3.  **コンポーネントのコンパイル**:
+    *   **C/C++ (`build_conan_cpp`)**: **Conan** を使用して依存関係を解決し、`conan.lock` を生成します。`native_service` をコンパイルし、ロックファイルを `out/` にコピーして SBOM ツールが検出できるようにします。
+    *   **Java (`build_java_maven`, `build_java_gradle`)**: Maven と Gradle でアプリをビルドし、`pom.xml` や `gradle.lockfile` を `out/` にアーカイブします。
+    *   **Python, Go, Rust**: 各言語の標準ツールでビルドし、マニフェストファイル（`requirements.txt`, `go.mod`, `Cargo.lock`）を保持します。
+
 <img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
-<img width="1269" height="712" alt="Screenshot 2025-11-28 at 17 26 48" src="https://github.com/user-attachments/assets/860f4b6c-203f-4485-8ef5-ac28495256e8" />
 
 
 ## フェーズ2：静的アプリケーションセキュリティテスト（SAST）
 
-コンパイルされた OS を見る前に、ソースコードに悪いコーディングプラクティス（バッファオーバーフローなど）がないかスキャンしましょう。
+`build.sh` は主に SBOM と依存関係の脆弱性に焦点を当てていますが、開発者はコードをコミットする前に SAST を実行すべきです。
 
-Snyk Code を実行して、ソースの脆弱性をスキャンし、Snyk に結果を報告します：
+Snyk Code を実行して、ソースコード自体の脆弱性（バッファオーバーフローなど）をスキャンします：
 ```bash
 snyk code test --report --project-name=minidroid --target-name=minidroid-platform --target-reference="$(git branch --show-current)" --remote-repo-url=https://github.com/lmaeda/minidroid-platform --org=${SNYK_ORG_ID}
 ```
-**期待されること:**
-*   Snyk は `system/core/native_service.c` の脆弱性をフラグ付けするはずです。
-*   `strcpy` の使用に関する **"Unchecked Input for Loop Condition"** や **"Buffer Overflow"** のような警告を探してください。
-*   このコマンドは、結果を Snyk プラットフォームに報告し、指定されたプロジェクト名、ターゲット名、ブランチ参照、リモートリポジトリ URL、および組織 ID で関連付けます。
-<img width="1425" height="580" alt="Screenshot 2025-11-28 at 17 28 30" src="https://github.com/user-attachments/assets/0180a96c-98c9-4553-97f4-4aec610725a3" />
+**期待される結果:**
+*   `system/core/native_service.c` 内の `strcpy` に起因するバッファオーバーフロー等が検出されます。
 
 
-## フェーズ3：SBOM（ソフトウェア部品表）の生成
+## フェーズ3：SBOM（ソフトウェア部品表）の生成と統合
 
-次に、`out/` ディレクトリを検査します。これは、デバイスにフラッシュされる最終的なファイルシステムを表します。SBOM を生成して、その中のすべてのソフトウェアコンポーネントをカタログ化する必要があります。
+`build.sh` の `generate_sboms` および `merge_sboms` 関数は、複数のツールを組み合わせて包括的な SBOM を作成します。
 
-Syft を使用して SBOM を生成します：
-```bash
-# 「ビルドされた」イメージ（out ディレクトリ）をスキャンして、最終的な OS に何が含まれているかを確認します。
-syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
-```
-**何が起こったか？**
-*   Syft はシミュレートされたシステムディレクトリをクロールしました。
-*   ビルド中にそこにコピーされた `pom.xml`、`requirements.txt`、`go.mod`、`Cargo.toml` などのパッケージマニフェストファイルを見つけました。
-*   これらすべてのコンポーネントをリストした CycloneDX JSON ファイルを作成しました。
+1.  **Scalibr によるバイナリスキャン**:
+    *   `out/` ディレクトリ全体をスキャンし、バイナリのハッシュや特徴からコンポーネントを特定します（例：Rclone）。
+    *   出力: `out/sboms/scalibr.json`
+
+2.  **Syft によるファイルシステムスキャン**:
+    *   `out/` ディレクトリ内のパッケージマニフェスト（`conan.lock`, `pom.xml` 等）とバイナリをスキャンします。
+    *   出力: `out/sboms/syft-fs.json`
+
+3.  **Snyk Unmanaged による C/C++ スキャン**:
+    *   `external/lib/` に展開された FFmpeg や Toybox のソースコードをスキャンし、管理されていない（Unmanaged）C/C++ パッケージを特定します。
+    *   出力: `out/sboms/snyk-unmanaged.json`
+
+4.  **SBOM の統合 (Merge)**:
+    *   **CycloneDX CLI** を使用して、上記3つの SBOM を `MASTER_PLATFORM_SBOM.json` に統合します。
+    *   さらに `syft convert` を使用して **SPDX** 形式 (`MASTER_PLATFORM_SBOM.spdx.json`) に変換し、互換性を確保します。
+
 <img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
+
 
 ## フェーズ4：SBOMの脆弱性スキャン
 
-これで、ソフトウェアの「成分」リストを既知の脆弱性データベースと照合できます。
+最後に、`build.sh` は生成されたマスター SBOM を使用して脆弱性をチェックします。
 
-### オプションA：Google OSV-Scanner を使用する
+### 自動実行されるステップ (`scan_sbom`)
 
-Google の OSV データベースは、オープンソースの脆弱性に対して優れています。
+1.  **Snyk SBOM Test**:
+    *   統合された CycloneDX および SPDX SBOM を Snyk データベースと照合します。
+    *   **Log4Shell** (log4j) や 古い **FFmpeg** の脆弱性などが検出されます。
+    *   結果はコンソールと JSON ファイル (`Snyk_SBOM_security_scan.json`) に出力されます。
 
+2.  **Snyk SBOM Monitor**:
+    *   SBOM のスナップショットを Snyk プラットフォームにアップロードします。
+    *   これにより、将来的に新たな脆弱性が発見された場合にアラートを受け取ることができます。
+
+**手動で確認する場合:**
 ```bash
-osv-scanner --sbom minidroid.sbom.json
+# 生成されたマスターSBOMをテスト
+snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
-**期待されること:**
-*   `log4j-core`（バージョン 2.14.1）をフラグ付けするはずです。
-*   `requests`（バージョン 2.19.0）をフラグ付けするはずです。
-*   これらのコンポーネントを OSV データベースと照合し、関連する脆弱性を見つけます。
+
 <img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
-
-### オプションB：Snyk sbom を使用する
-
-SBOM を Snyk にインポートすると、オープンソースの脆弱性を分析し、経時的に追跡できます。
-
-```bash
-snyk sbom test --experimental --file=minidroid.sbom.json
-```
-**期待されること:**
-*   Snyk は SBOM にリストされているパッケージを特定します。
-*   `log4j` の重大な **Log4Shell** 脆弱性を表示します。
-*   詳細情報と修正アドバイスについては、Snyk 脆弱性データベースへのリンクを提供します。
 <img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
-
-
-### オプションC：Snyk sbom を使用して SBOM を監視する
-
-Snyk に SBOM を監視させると、長期的に依存関係の脆弱性を追跡し、新しい脆弱性が発見されたときにアラートを受け取ることができます。
-
-```bash
-snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
-```
-**期待されること:**
-*   このコマンドは、`minidroid.sbom.json` ファイルによって定義されたプロジェクトを Snyk プラットフォームで監視するように設定します。
-*   Snyk が新しい脆弱性を発見すると、関連するプロジェクトに対してアラートが送信されます。
-<img width="1105" height="604" alt="Screenshot 2025-11-28 at 17 31 09" src="https://github.com/user-attachments/assets/a27f1998-435b-4951-8ac6-286103faf3bd" />
-
-<img width="1268" height="766" alt="Screenshot 2025-11-28 at 17 20 21" src="https://github.com/user-attachments/assets/80dfdf6a-462e-4a33-933b-7708c4d2d0f3" />
-
 
 ---
 <br>
 
 # MiniDroid Platform - Security Scan Demo Walkthrough
 
-This project mimics a simplified Android/Embedded build structure to test security scanning tools like **Snyk**, **Syft**, and **OSV-Scanner**.
+This project mimics a simplified Android/Embedded build structure to test security scanning tools like **Snyk**, **Syft**, **Scalibr**, and **OSV-Scanner**.
 
 ## Directory Structure
-- `system/core`: Native C++ services.
-- `packages/apps`: Java/Kotlin applications.
+- `system/core`: Native C++ services (managed by Conan).
+- `packages/apps`: Java/Kotlin applications (Maven/Gradle).
 - `vendor/components`: Go/Rust microservices.
 - `system/tools`: Python system utilities.
-- `out/`: The simulated "Build Artifact" (Target for Syft/OSV).
+- `external/`: Third-party C/C++ sources and binaries for Snyk Unmanaged scanning.
+- `out/`: The simulated "Build Artifact" (Target for SBOM tools).
 
 ## Prerequisites
 
@@ -137,102 +128,93 @@ Ensure you have the following tools installed:
 
 1.  **Snyk CLI**: `npm install -g snyk` (and run `snyk auth`)
 2.  **Syft**: `curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin`
-3.  **OSV-Scanner**: `go install github.com/google/osv-scanner/cmd/osv-scanner@latest` (or via binary download)
+3.  **Scalibr** (Optional): Google's SBOM generator for binary fingerprinting.
+4.  **Conan**: `pip install conan` (for C/C++ package management).
+5.  **CycloneDX CLI**: For merging SBOMs.
 
 ---
 
-## Phase 1: The Build Simulation
+## Phase 1: The Build Simulation (Automated Pipeline)
 
-In a real Android environment, `source build/envsetup.sh` and `make` create the system image. We will mimic a simplified version of this process. This repository includes two build scripts: `build_system.sh` for Linux/macOS and `build_system.ps1` for Windows. These scripts compile the various components written in Java, C/C++, Python, Go, and Rust, and place the build artifacts into the `out/` directory.
+While a real Android environment uses `make`, this demo uses `build.sh` to automate the entire build process and security pipeline.
 
-Run the build script appropriate for your operating system to generate the filesystem artifacts in `out/`:
-
-**For Linux/macOS (Bash):**
+**Run Command (Linux/macOS):**
 ```bash
-./build_system.sh
+./build.sh
 ```
 
-**For Windows (PowerShell):**
-```powershell
-./build_system.ps1
-```
-*Output:* You should see logs indicating it is compiling C++, Java, Go, and Rust, and installing the artifacts into `out/target/product/generic`. This simulates a real build output directory.
+**Key Steps Executed by `build.sh`:**
 
-***Note:*** The build scripts are intentionally configured to copy package manifest files (e.g., `pom.xml`, `go.mod`, `Cargo.toml`, etc.) into the `out/` directory. This is crucial for ensuring that SBOM tools like `Syft` can accurately discover all software components included in the final build artifact.
+1.  **Environment Initialization (`init_workspace`)**:
+    *   Creates the Android-like directory structure in `out/target/product/generic`.
+
+2.  **Third-Party Dependency Processing**:
+    *   **FFmpeg / Toybox (`process_ffmpeg`, `process_toybox`)**: Downloads and extracts source code to `external/lib/src`. This allows **Snyk Unmanaged** to scan these C/C++ sources for vulnerabilities later.
+    *   **Rclone (`process_rclone`)**: Downloads a pre-compiled binary and installs it to `out/system/bin`. This serves as a target for **Scalibr**'s binary scanning.
+
+3.  **Component Compilation**:
+    *   **C/C++ (`build_conan_cpp`)**: Uses **Conan** to resolve dependencies, generating a `conan.lock` file. Compiles the `native_service` and archives the lockfile to `out/` for SBOM detection.
+    *   **Java (`build_java_maven`, `build_java_gradle`)**: Builds apps and archives `pom.xml` and `gradle.lockfile` to `out/`.
+    *   **Python, Go, Rust**: Builds components and preserves their respective manifests (`requirements.txt`, `go.mod`, `Cargo.lock`).
+
 <img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
-<img width="1269" height="712" alt="Screenshot 2025-11-28 at 17 26 48" src="https://github.com/user-attachments/assets/860f4b6c-203f-4485-8ef5-ac28495256e8" />
 
 
 ## Phase 2: Static Application Security Testing (SAST)
 
-Before we look at the compiled OS, let's scan the source code for bad coding practices (like Buffer Overflows).
+While `build.sh` focuses on SBOMs and dependencies, developers should run SAST before committing code.
 
-Run Snyk Code to scan the source for vulnerabilities and report the results to Snyk:
+Run Snyk Code to scan the source for bad coding practices (like Buffer Overflows):
 ```bash
 snyk code test --report --project-name=minidroid --target-name=minidroid-platform --target-reference="$(git branch --show-current)" --remote-repo-url=https://github.com/lmaeda/minidroid-platform --org=${SNYK_ORG_ID}
 ```
 **What to expect:**
-*   Snyk should flag a vulnerability in `system/core/native_service.c`.
-*   Look for warnings like **"Unchecked Input for Loop Condition"** or **"Buffer Overflow"** regarding the use of `strcpy`.
-*   This command will report the results to the Snyk platform, associating them with the specified project name, target name, branch reference, remote repository URL, and organization ID.
-<img width="1425" height="580" alt="Screenshot 2025-11-28 at 17 28 30" src="https://github.com/user-attachments/assets/0180a96c-98c9-4553-97f4-4aec610725a3" />
+*   Snyk should flag vulnerabilities in `system/core/native_service.c`, such as **"Buffer Overflow"** from `strcpy`.
 
 
-## Phase 3: Generating the SBOM (Software Bill of Materials)
+## Phase 3: SBOM Generation & Consolidation
 
-Now we'll inspect the `out/` directory. This represents the final file system that would be flashed onto a device. We need to catalog all the software components inside it by generating an SBOM.
+The `generate_sboms` and `merge_sboms` functions in `build.sh` combine multiple tools to create a comprehensive SBOM.
 
-Generate the SBOM using Syft:
-```bash
-# Scan the "built" image (the out directory ) to see what ended up in the final OS.
-syft dir:./out/ -o cyclonedx-json --file minidroid.sbom.json
-```
-**What just happened?**
-*   Syft crawled the simulated system directory.
-*   It found the package manifests (`pom.xml`, `requirements.txt`, `go.mod`, `Cargo.toml`, etc.) that were copied there during the build.
-*   It created a CycloneDX JSON file listing all these components.
+1.  **Binary Scan by Scalibr**:
+    *   Scans the `out/` directory, identifying components via binary fingerprinting (e.g., Rclone).
+    *   Output: `out/sboms/scalibr.json`
+
+2.  **Filesystem Scan by Syft**:
+    *   Crawls `out/` to find package manifests (including `conan.lock`, `pom.xml`) and binaries.
+    *   Output: `out/sboms/syft-fs.json`
+
+3.  **Unmanaged C/C++ Scan by Snyk**:
+    *   Scans the extracted source code of FFmpeg and Toybox in `external/lib/` to identify unmanaged C/C++ packages and signatures.
+    *   Output: `out/sboms/snyk-unmanaged.json`
+
+4.  **SBOM Consolidation (Merge)**:
+    *   Uses **CycloneDX CLI** to merge the three SBOMs into `MASTER_PLATFORM_SBOM.json`.
+    *   Converts this master SBOM to **SPDX** format (`MASTER_PLATFORM_SBOM.spdx.json`) using `syft convert` for broader tool compatibility.
+
 <img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
 
-## Phase 4: Vulnerability Scanning the SBOM
 
-Now we can check our list of software "ingredients" against known vulnerability databases.
+## Phase 4: SBOM Vulnerability Scanning
 
-### Option A: Using Google OSV-Scanner
+Finally, `build.sh` checks the generated Master SBOM against vulnerability databases.
 
-Google's OSV database is excellent for open-source vulnerabilities.
+### Automated Steps (`scan_sbom`)
 
+1.  **Snyk SBOM Test**:
+    *   Tests the merged CycloneDX and SPDX SBOMs against the Snyk Vulnerability Database.
+    *   Detects issues like **Log4Shell** (log4j) or vulnerabilities in the unmanaged **FFmpeg** version.
+    *   Outputs results to the console and a JSON file (`Snyk_SBOM_security_scan.json`).
+
+2.  **Snyk SBOM Monitor**:
+    *   Uploads the SBOM snapshot to the Snyk platform.
+    *   Sets up continuous monitoring to alert you on future vulnerability disclosures.
+
+**Manual Verification:**
 ```bash
-osv-scanner --sbom minidroid.sbom.json
+# Test the generated Master SBOM
+snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
-**What to expect:**
-*   It should flag `log4j-core` (Version 2.14.1).
-*   It should flag `requests` (Version 2.19.0).
-*   It matches these components against the OSV database to find associated vulnerabilities.
+
 <img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
-
-### Option B: Using Snyk Open Source
-
-Importing the SBOM into Snyk allows you to analyze open-source vulnerabilities and track them over time.
-
-```bash
-snyk sbom test --experimental --file=minidroid.sbom.json
-```
-**What to expect:**
-*   Snyk will identify the packages listed in the SBOM.
-*   It will show the critical **Log4Shell** vulnerability in `log4j`.
-*   It provides a link to the Snyk Vulnerability Database for detailed information and remediation advice.
 <img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
-
-### Option C: Using Snyk sbom to Monitor SBOM
-
-Allow Snyk to monitor your SBOM for long-term dependency vulnerability tracking and receive alerts when new vulnerabilities are disclosed.
-
-```bash
-snyk sbom monitor --org=${SNYK_ORG_ID} --experimental --file=minidroid.sbom.json
-```
-**What to expect:**
-*   This command will set up monitoring for the project defined by the `minidroid.sbom.json` file on the Snyk platform.
-*   Snyk will send alerts for the associated project when new vulnerabilities are found.
-<img width="1105" height="604" alt="Screenshot 2025-11-28 at 17 31 09" src="https://github.com/user-attachments/assets/a27f1998-435b-4951-8ac6-286103faf3bd" />
-
-<img width="1268" height="766" alt="Screenshot 2025-11-28 at 17 20 21" src="https://github.com/user-attachments/assets/80dfdf6a-462e-4a33-933b-7708c4d2d0f3" />
