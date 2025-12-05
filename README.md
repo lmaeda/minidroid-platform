@@ -162,7 +162,7 @@ While a real Android environment uses `make`, this demo uses `build.sh` to autom
     *   **Java (`build_java_maven`, `build_java_gradle`)**: Builds apps and archives `pom.xml` and `gradle.lockfile` to `out/`.
     *   **Python, Go, Rust**: Builds components and preserves their respective manifests (`requirements.txt`, `go.mod`, `Cargo.lock`).
 
-<img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
+<img width="1114" height="799" alt="Screenshot 2025-12-05 at 19 03 20" src="https://github.com/user-attachments/assets/52a3e955-3de3-4e44-b977-1bc77f2d6c7b" />
 
 
 ## Phase 2: Static Application Security Testing (SAST)
@@ -185,25 +185,29 @@ The `generate_sboms` and `merge_sboms` functions in `build.sh` combine multiple 
     *   Scans the `out/` directory, identifying components via binary fingerprinting (e.g., Rclone).
     *   This is particularly useful for identifying pre-compiled binaries where no package manifest exists.
     *   Output: `out/sboms/scalibr.json`
+<img width="1400" height="317" alt="Screenshot 2025-12-05 at 19 13 30" src="https://github.com/user-attachments/assets/03619706-d938-475e-b23a-19eb5d7b5225" />
 
 2.  **Filesystem Scan by Syft**:
     *   Crawls `out/` to find package manifests (including `conan.lock`, `pom.xml`) and binaries.
     *   Output: `out/sboms/syft-fs.json`
+<img width="948" height="177" alt="Screenshot 2025-12-05 at 19 14 21" src="https://github.com/user-attachments/assets/717d6df4-d993-4017-9a22-d920d25e88cb" />
 
 3.  **Unmanaged C/C++ Scan by Snyk**:
     *   Scans the extracted source code of FFmpeg and Toybox in `external/lib/` to identify unmanaged C/C++ packages and signatures.
     *   Output: `out/sboms/snyk-unmanaged.json`
+<img width="940" height="34" alt="Screenshot 2025-12-05 at 19 14 41" src="https://github.com/user-attachments/assets/71c00ddc-0156-44bf-bdae-36df49a82eb8" />
 
 4.  **SBOM Consolidation (Merge)**:
     *   Uses **CycloneDX CLI** to merge the three SBOMs into `MASTER_PLATFORM_SBOM.json`.
     *   Converts this master SBOM to **SPDX** format (`MASTER_PLATFORM_SBOM.spdx.json`) using `syft convert` for broader tool compatibility.
 
-<img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
+<img width="869" height="369" alt="Screenshot 2025-12-05 at 19 14 58" src="https://github.com/user-attachments/assets/4e92e528-ecbf-4f04-bb76-a727115842dd" />
 
 
 ## Phase 4: SBOM Vulnerability Scanning
 
 Finally, `build.sh` checks the generated Master SBOM against vulnerability databases.
+<img width="643" height="136" alt="Screenshot 2025-12-05 at 19 15 11" src="https://github.com/user-attachments/assets/783fbf6e-266a-4507-8556-1d29876dc388" />
 
 ### Automated Steps (`scan_sbom`)
 
@@ -211,16 +215,17 @@ Finally, `build.sh` checks the generated Master SBOM against vulnerability datab
     *   Tests the merged CycloneDX and SPDX SBOMs against the Snyk Vulnerability Database.
     *   Detects issues like **Log4Shell** (log4j) or vulnerabilities in the unmanaged **FFmpeg** version.
     *   Outputs results to the console and a JSON file (`Snyk_SBOM_security_scan.json`).
+<img width="973" height="514" alt="Screenshot 2025-12-05 at 19 15 41" src="https://github.com/user-attachments/assets/93a9ccb7-3da3-489e-a11e-f34c61ac630d" />
+
 
 2.  **Snyk SBOM Monitor**:
     *   Uploads the SBOM snapshot to the Snyk platform.
     *   Sets up continuous monitoring to alert you on future vulnerability disclosures.
+<img width="1220" height="787" alt="Screenshot 2025-12-05 at 19 23 35" src="https://github.com/user-attachments/assets/dcedcc9b-1034-42c2-a2ab-3974cbae328c" />
 
 **Manual Verification:**
 ```bash
 # Test the generated Master SBOM
 snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
-
-<img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
-<img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
+<img width="662" height="785" alt="Screenshot 2025-12-05 at 19 32 40" src="https://github.com/user-attachments/assets/73f35bc7-a13a-4a90-9edb-f9a9ee9dfbf0" />
