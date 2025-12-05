@@ -110,7 +110,7 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
 # 生成されたマスターSBOMをテスト
 snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
-<img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
+<img width="662" height="785" alt="Screenshot 2025-12-05 at 19 32 40" src="https://github.com/user-attachments/assets/73f35bc7-a13a-4a90-9edb-f9a9ee9dfbf0" />
 
 ---
 <br>
