@@ -36,6 +36,7 @@
 1.  **環境の初期化 (`init_workspace`)**:
     *   `out/target/product/generic` に Android 風のディレクトリ構造を作成します。
 
+
 2.  **サードパーティ依存関係の処理**:
     *   **FFmpeg / Toybox (`process_ffmpeg`, `process_toybox`)**: ソースコードをダウンロードし、`external/lib/src` に展開します。これは後のフェーズで **Snyk Unmanaged** が C/C++ の脆弱性をスキャンするために使用されます。
     *   **Rclone (`process_rclone`)**: プリコンパイルされたバイナリをダウンロードし、`out/system/bin` に配置します。これは **Scalibr** によるバイナリスキャンの対象となります。
@@ -45,7 +46,7 @@
     *   **Java (`build_java_maven`, `build_java_gradle`)**: Maven と Gradle でアプリをビルドし、`pom.xml` や `gradle.lockfile` を `out/` にアーカイブします。
     *   **Python, Go, Rust**: 各言語の標準ツールでビルドし、マニフェストファイル（`requirements.txt`, `go.mod`, `Cargo.lock`）を保持します。
 
-<img width="995" height="729" alt="Screenshot 2025-11-28 at 17 26 22" src="https://github.com/user-attachments/assets/1528fe9a-32b2-40bc-93fc-ead17a3ee77a" />
+<img width="1114" height="799" alt="Screenshot 2025-12-05 at 19 03 20" src="https://github.com/user-attachments/assets/52a3e955-3de3-4e44-b977-1bc77f2d6c7b" />
 
 
 ## フェーズ2：静的アプリケーションセキュリティテスト（SAST）
@@ -68,25 +69,28 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
     *   `out/` ディレクトリ全体をスキャンし、バイナリのハッシュや特徴からコンポーネントを特定します（例：Rclone）。
     *   これはマニフェストファイルが存在しない、プリコンパイルされたバイナリ等の特定に特に有効です。
     *   出力: `out/sboms/scalibr.json`
+<img width="1400" height="317" alt="Screenshot 2025-12-05 at 19 13 30" src="https://github.com/user-attachments/assets/03619706-d938-475e-b23a-19eb5d7b5225" />
 
 2.  **Syft によるファイルシステムスキャン**:
     *   `out/` ディレクトリ内のパッケージマニフェスト（`conan.lock`, `pom.xml` 等）とバイナリをスキャンします。
     *   出力: `out/sboms/syft-fs.json`
+<img width="948" height="177" alt="Screenshot 2025-12-05 at 19 14 21" src="https://github.com/user-attachments/assets/717d6df4-d993-4017-9a22-d920d25e88cb" />
 
 3.  **Snyk Unmanaged による C/C++ スキャン**:
     *   `external/lib/` に展開された FFmpeg や Toybox のソースコードをスキャンし、管理されていない（Unmanaged）C/C++ パッケージを特定します。
     *   出力: `out/sboms/snyk-unmanaged.json`
+<img width="940" height="34" alt="Screenshot 2025-12-05 at 19 14 41" src="https://github.com/user-attachments/assets/71c00ddc-0156-44bf-bdae-36df49a82eb8" />
 
 4.  **SBOM の統合 (Merge)**:
     *   **CycloneDX CLI** を使用して、上記3つの SBOM を `MASTER_PLATFORM_SBOM.json` に統合します。
     *   さらに `syft convert` を使用して **SPDX** 形式 (`MASTER_PLATFORM_SBOM.spdx.json`) に変換し、互換性を確保します。
 
-<img width="1015" height="157" alt="Screenshot 2025-11-28 at 17 28 57" src="https://github.com/user-attachments/assets/04c9d88f-c836-42f6-96a9-e4a73010d995" />
-
+<img width="869" height="369" alt="Screenshot 2025-12-05 at 19 14 58" src="https://github.com/user-attachments/assets/4e92e528-ecbf-4f04-bb76-a727115842dd" />
 
 ## フェーズ4：SBOMの脆弱性スキャン
 
 最後に、`build.sh` は生成されたマスター SBOM を使用して脆弱性をチェックします。
+<img width="643" height="136" alt="Screenshot 2025-12-05 at 19 15 11" src="https://github.com/user-attachments/assets/783fbf6e-266a-4507-8556-1d29876dc388" />
 
 ### 自動実行されるステップ (`scan_sbom`)
 
@@ -94,18 +98,18 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
     *   統合された CycloneDX および SPDX SBOM を Snyk データベースと照合します。
     *   **Log4Shell** (log4j) や 古い **FFmpeg** の脆弱性などが検出されます。
     *   結果はコンソールと JSON ファイル (`Snyk_SBOM_security_scan.json`) に出力されます。
+<img width="973" height="514" alt="Screenshot 2025-12-05 at 19 15 41" src="https://github.com/user-attachments/assets/93a9ccb7-3da3-489e-a11e-f34c61ac630d" />
 
 2.  **Snyk SBOM Monitor**:
     *   SBOM のスナップショットを Snyk プラットフォームにアップロードします。
     *   これにより、将来的に新たな脆弱性が発見された場合にアラートを受け取ることができます。
+<img width="1220" height="787" alt="Screenshot 2025-12-05 at 19 23 35" src="https://github.com/user-attachments/assets/dcedcc9b-1034-42c2-a2ab-3974cbae328c" />
 
 **手動で確認する場合:**
 ```bash
 # 生成されたマスターSBOMをテスト
 snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
-
-<img width="1156" height="771" alt="Screenshot 2025-11-28 at 17 29 23" src="https://github.com/user-attachments/assets/afa675bb-703d-46b7-8384-bc9c62b9ed5f" />
 <img width="903" height="767" alt="Screenshot 2025-11-28 at 17 30 38" src="https://github.com/user-attachments/assets/c78819eb-fee4-4410-abca-5756eade1b10" />
 
 ---
