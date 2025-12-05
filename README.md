@@ -1,6 +1,6 @@
 # MiniDroid プラットフォーム - セキュリティスキャンデモウォークスルー
 
-このプロジェクトは、**Snyk**、**Syft**、**Scalibr**、**OSV-Scanner** のようなセキュリティスキャンツールをテストするために、簡略化された Android/組み込みビルド構造を模倣しています。
+このプロジェクトは、**Snyk**、**Syft**、**Scalibr** のようなセキュリティスキャンツールをテストするために、簡略化された Android/組み込みビルド構造を模倣しています。
 
 ## ディレクトリ構造
 - `system/core`: ネイティブ C++ サービス（Conan で管理）。
@@ -66,6 +66,7 @@ snyk code test --report --project-name=minidroid --target-name=minidroid-platfor
 
 1.  **Scalibr によるバイナリスキャン**:
     *   `out/` ディレクトリ全体をスキャンし、バイナリのハッシュや特徴からコンポーネントを特定します（例：Rclone）。
+    *   これはマニフェストファイルが存在しない、プリコンパイルされたバイナリ等の特定に特に有効です。
     *   出力: `out/sboms/scalibr.json`
 
 2.  **Syft によるファイルシステムスキャン**:
@@ -112,7 +113,7 @@ snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --exp
 
 # MiniDroid Platform - Security Scan Demo Walkthrough
 
-This project mimics a simplified Android/Embedded build structure to test security scanning tools like **Snyk**, **Syft**, **Scalibr**, and **OSV-Scanner**.
+This project mimics a simplified Android/Embedded build structure to test security scanning tools like **Snyk**, **Syft**, and **Scalibr**.
 
 ## Directory Structure
 - `system/core`: Native C++ services (managed by Conan).
@@ -178,6 +179,7 @@ The `generate_sboms` and `merge_sboms` functions in `build.sh` combine multiple 
 
 1.  **Binary Scan by Scalibr**:
     *   Scans the `out/` directory, identifying components via binary fingerprinting (e.g., Rclone).
+    *   This is particularly useful for identifying pre-compiled binaries where no package manifest exists.
     *   Output: `out/sboms/scalibr.json`
 
 2.  **Filesystem Scan by Syft**:
