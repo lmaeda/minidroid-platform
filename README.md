@@ -112,6 +112,9 @@ snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --exp
 ```
 <img width="662" height="785" alt="Screenshot 2025-12-05 at 19 32 40" src="https://github.com/user-attachments/assets/73f35bc7-a13a-4a90-9edb-f9a9ee9dfbf0" />
 
+**webUIで 監視 対象を 確認する場合:**
+<img width="1407" height="774" alt="Screenshot 2025-12-05 at 19 41 08" src="https://github.com/user-attachments/assets/b8f33764-957e-4508-8b3c-e5ea1f79c74f" />
+
 ---
 <br>
 
@@ -229,3 +232,6 @@ Finally, `build.sh` checks the generated Master SBOM against vulnerability datab
 snyk sbom test --file=out/target/product/generic/MASTER_PLATFORM_SBOM.json --experimental
 ```
 <img width="662" height="785" alt="Screenshot 2025-12-05 at 19 32 40" src="https://github.com/user-attachments/assets/73f35bc7-a13a-4a90-9edb-f9a9ee9dfbf0" />
+
+**webUI monitor verification:**
+<img width="1407" height="774" alt="Screenshot 2025-12-05 at 19 41 08" src="https://github.com/user-attachments/assets/b8f33764-957e-4508-8b3c-e5ea1f79c74f" />
